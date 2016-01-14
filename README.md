@@ -1,4 +1,4 @@
-# Space shooter (WIP title)
+# Space shooter (WIP title) [![Build Status](https://travis-ci.org/LFalch/space-shooter.svg?branch=master)](https://travis-ci.org/LFalch/space-shooter)
 
 A space ship shooter game where you program the ships' AI. Very much WIP!
 
