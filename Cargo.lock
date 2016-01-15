@@ -3,7 +3,7 @@ name = "space-shooter"
 version = "0.1.0-wip"
 dependencies = [
  "glium 0.13.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "korome 0.7.1 (git+https://github.com/lfalch/korome.git?tag=v0.7.1)",
+ "korome 0.8.0 (git+https://github.com/lfalch/korome.git?tag=v0.8.0)",
 ]
 
 [[package]]
@@ -325,8 +325,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "korome"
-version = "0.7.1"
-source = "git+https://github.com/lfalch/korome.git?tag=v0.7.1#97e98b9d9065e392682fac6b1cacaa5254d5ebd5"
+version = "0.8.0"
+source = "git+https://github.com/lfalch/korome.git?tag=v0.8.0#71cfebe8d3ff48f669330cfaa3521e7d56a0dc2e"
 dependencies = [
  "glium 0.13.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "image 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -612,3 +612,4 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "bitflags 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
+

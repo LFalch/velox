@@ -45,10 +45,10 @@ pub fn logic (objs: &mut Vec<Obj>, logic_args: LogicArgs){
         let mut acceleration = 0.;
 
         is_down!{logic_args;
-            A, Left => {
+            D, Right => {
                 player.rot -= 2. * delta
             },
-            D, Right => {
+            A, Left => {
                 player.rot += 2. * delta
             },
             S, Down => {
