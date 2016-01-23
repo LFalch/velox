@@ -6,18 +6,14 @@ use korome::*;
 mod obj;
 use obj::*;
 
-trait Object: Draw + Update{}
-
-impl<T: Draw + Update> Object for T{}
-
 fn main() {
     let graphics = Graphics::new("SPACE-SHOOTER", 1200, 900);
 
     let planet = include_texture!(graphics, "planet.png").unwrap();
     let player = include_texture!(graphics, "ship.png"  ).unwrap();
 
-    let mut objs = Vec::<Box<Object>>::new();
-    objs.push(Box::new(Player::new(&player)));
+    let mut objs = Vec::new();
+    objs.push(new_player(&player));
 
     let mut gm = GameManager::new(graphics);
 
@@ -30,12 +26,7 @@ fn main() {
 
         for me in info.get_mouse_events(){
             if let (false, MouseButton::Left) = *me {
-                let obj = Obj{
-                    pos: info.mousepos.into(),
-                    .. Obj::new(&planet)
-                };
-                objs.push(Box::new(obj));
-
+                objs.push(Obj::new(&planet, info.mousepos.into()));
                 println!("Object added, new count: {}", objs.len());
             }
         }
