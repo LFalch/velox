@@ -8,4 +8,4 @@ glium = "0.13"
 
 [dependencies.korome]
 git = "https://github.com/lfalch/korome.git"
-tag = "v0.8.0"
+tag = "v0.9.0"
