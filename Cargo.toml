@@ -3,9 +3,6 @@ name = "space-shooter"
 version = "0.1.0-wip"
 authors = ["LFalch <lucas@wasd.dk>"]
 
-[dependencies]
-glium = "0.13"
-
 [dependencies.korome]
 git = "https://github.com/lfalch/korome.git"
 tag = "v0.9.0"
