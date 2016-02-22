@@ -3,6 +3,5 @@ name = "space-shooter"
 version = "0.1.0-wip"
 authors = ["LFalch <lucas@wasd.dk>"]
 
-[dependencies.korome]
-git = "https://github.com/lfalch/korome.git"
-tag = "v0.9.0"
+[dependencies]
+korome = "0.9.1"
