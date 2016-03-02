@@ -6,15 +6,18 @@ use korome::*;
 mod obj;
 use obj::*;
 
+pub const WIDTH: u32 = 1200;
+pub const HEIGHT: u32 = 900;
+
 fn main() {
-    let graphics = Graphics::new("SPACE-SHOOTER", 1200, 900);
+    let graphics = Graphics::new("SPACE-SHOOTER", WIDTH, HEIGHT);
 
     let planet = include_texture!(graphics, "planet.png").unwrap();
     let player = include_texture!(graphics, "ship.png"  ).unwrap();
 
     let mut objs = Vec::new();
     objs.push(new_player(&player));
-
+    
     let mut gm = GameManager::new(graphics);
 
     'main: while let Some((info, mut drawer)) = gm.next_frame(){

@@ -31,11 +31,30 @@ impl<'a> Obj<'a>{
     }
 }
 
+const W: f32 = super::WIDTH  as f32 / 2.;
+const H: f32 = super::HEIGHT as f32 / 2.;
+
 impl<'a> Update for Obj<'a>{
     #[inline]
     fn update(&mut self, info: &FrameInfo){
         (self.update_f)(&mut self.inner, info);
+
         self.inner.pos = self.inner.pos + self.inner.vel * info.delta as f32;
+
+        let Vector2(ref mut x, ref mut y) = self.inner.pos;
+
+        if *x < -W {
+            *x += W * 2.
+        }
+        if *x > W {
+            *x -= W * 2.
+        }
+        if *y < -H {
+            *y += H * 2.
+        }
+        if *y > H {
+            *y -= H * 2.
+        }
     }
 }
 
@@ -47,6 +66,7 @@ impl<'a> Draw for Obj<'a>{
     }
 }
 
+#[inline]
 pub fn new_player(tex: &Texture) -> Obj{
     Obj::with_update(tex, player_update, Vector2(0., 0.))
 }
