@@ -17,10 +17,10 @@ fn main() {
 
     let mut objs = Vec::new();
     objs.push(new_player(&player));
-    
+
     let mut gm = GameManager::new(graphics);
 
-    'main: while let Some((info, mut drawer)) = gm.next_frame(){
+    'main: while let (false, info, mut drawer) = gm.next_frame(){
         for ke in info.get_key_events(){
             if let (false, VirtualKeyCode::Escape) = *ke{
                 break 'main

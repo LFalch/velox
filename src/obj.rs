@@ -39,7 +39,7 @@ impl<'a> Update for Obj<'a>{
     fn update(&mut self, info: &FrameInfo){
         (self.update_f)(&mut self.inner, info);
 
-        self.inner.pos = self.inner.pos + self.inner.vel * info.delta as f32;
+        self.inner.pos += self.inner.vel * info.delta as f32;
 
         let Vector2(ref mut x, ref mut y) = self.inner.pos;
 
@@ -60,7 +60,7 @@ impl<'a> Update for Obj<'a>{
 
 impl<'a> Draw for Obj<'a>{
     #[inline]
-    fn draw(&self, drawer: &mut Drawer) -> DrawResult<()>{
+    fn draw(&self, drawer: &mut Drawer) -> DrawResult{
         let (x, y) = self.inner.pos.into();
         drawer.draw_texture(self.tex, x, y, self.inner.rot)
     }
@@ -94,5 +94,5 @@ fn player_update(player: &mut InnerObj, info: &FrameInfo){
         }
     }
 
-    player.vel = player.vel + Vector2::<f32>::unit_vector(player.rot) * acceleration;
+    player.vel += Vector2::<f32>::unit_vector(player.rot) * acceleration;
 }
