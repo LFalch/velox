@@ -1,28 +1,29 @@
 use korome::*;
+use korome::easy::*;
 
-pub struct InnerObj{
+pub struct InnerObject{
     pub rot: f32,
     pub pos: Vector2<f32>,
     pub vel: Vector2<f32>,
 }
 
-pub struct Obj<'a>{
-    inner: InnerObj,
+pub struct Object<'a>{
+    inner: InnerObject,
     tex: &'a Texture,
-    update_f: Box<FnMut(&mut InnerObj, &FrameInfo)>,
+    update_f: Box<FnMut(&mut InnerObject, &FrameInfo)>,
 }
 
-impl<'a> Obj<'a>{
+impl<'a> Object<'a>{
     #[inline]
     pub fn new(tex: &'a Texture, pos: Vector2<f32>) -> Self{
-        Obj::with_update(tex, |_, _| (), pos)
+        Object::with_update(tex, |_, _| (), pos)
     }
 
-    pub fn with_update<F: 'static + FnMut(&mut InnerObj, &FrameInfo)>(tex: &'a Texture, update: F, pos: Vector2<f32>) -> Self{
-        Obj{
+    pub fn with_update<F: 'static + FnMut(&mut InnerObject, &FrameInfo)>(tex: &'a Texture, update: F, pos: Vector2<f32>) -> Self{
+        Object{
             tex: tex,
             update_f: Box::new(update),
-            inner: InnerObj{
+            inner: InnerObject{
                 rot: 0.,
                 pos: pos,
                 vel: Vector2(0., 0.),
@@ -34,7 +35,7 @@ impl<'a> Obj<'a>{
 const W: f32 = super::WIDTH  as f32 / 2.;
 const H: f32 = super::HEIGHT as f32 / 2.;
 
-impl<'a> Update for Obj<'a>{
+impl<'a> Obj for Object<'a>{
     #[inline]
     fn update(&mut self, info: &FrameInfo){
         (self.update_f)(&mut self.inner, info);
@@ -56,22 +57,19 @@ impl<'a> Update for Obj<'a>{
             *y -= H * 2.
         }
     }
-}
-
-impl<'a> Draw for Obj<'a>{
     #[inline]
-    fn draw(&self, drawer: &mut Drawer) -> DrawResult{
+    fn draw(&self, drawer: &mut Drawer){
         let (x, y) = self.inner.pos.into();
-        drawer.draw_texture(self.tex, x, y, self.inner.rot)
+        drawer.draw_texture(self.tex, x, y, self.inner.rot).unwrap()
     }
 }
 
 #[inline]
-pub fn new_player(tex: &Texture) -> Obj{
-    Obj::with_update(tex, player_update, Vector2(0., 0.))
+pub fn new_player(tex: &Texture) -> Object{
+    Object::with_update(tex, player_update, Vector2(0., 0.))
 }
 
-fn player_update(player: &mut InnerObj, info: &FrameInfo){
+fn player_update(player: &mut InnerObject, info: &FrameInfo){
     let delta = info.delta as f32;
 
     let mut acceleration = 0.;

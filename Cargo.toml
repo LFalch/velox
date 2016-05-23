@@ -3,5 +3,5 @@ name = "space-shooter"
 version = "0.1.0-wip"
 authors = ["LFalch <lucas@wasd.dk>"]
 
-[dependencies]
-korome = "0.10"
+[dependencies.korome]
+version = "0.11"
