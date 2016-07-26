@@ -4,4 +4,4 @@ version = "0.1.0-wip"
 authors = ["LFalch <lucas@wasd.dk>"]
 
 [dependencies.korome]
-version = "0.11"
+version = "0.12"
