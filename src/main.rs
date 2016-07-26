@@ -8,9 +8,6 @@ use game::SpaceShooter;
 
 mod obj;
 
-pub const WIDTH: u32 = 1200;
-pub const HEIGHT: u32 = 900;
-
 macro_rules! textures {
     ($graphics:ident; $($tex:ident),*) => ($(
         let $tex = Texture::from_png_bytes(&$graphics, include_bytes!(concat!(stringify!($tex), ".png"))).unwrap();
@@ -18,7 +15,7 @@ macro_rules! textures {
 }
 
 fn main() {
-    let graphics = Graphics::new("SPACE-SHOOTER", WIDTH, HEIGHT).unwrap();
+    let graphics = Graphics::new("SPACE-SHOOTER", 1200, 900).unwrap();
 
     textures!(graphics; planet, ship, sun, arrow);
 

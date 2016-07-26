@@ -5,7 +5,8 @@ pub struct SpaceShooter<'a>{
     objs: ObjSystem<'a>,
     sun   : &'a Texture,
     planet: &'a Texture,
-    arrow : &'a Texture
+    arrow : &'a Texture,
+
 }
 
 impl<'a> SpaceShooter<'a>{
@@ -73,6 +74,7 @@ impl<'a> ObjSystem<'a>{
 
     pub fn update(&mut self, info: &FrameInfo, drawer: &mut Drawer, arrow: &Texture){
         let things = self.all_inners();
+        let wh = drawer.graphics.get_h_size();
 
         for (i, x) in self.0.iter_mut().enumerate(){
             let mut net_grav = Vector2(0., 0.);
@@ -84,7 +86,7 @@ impl<'a> ObjSystem<'a>{
                 let force = Vector2::unit_vector(dir_towards_body) * g_force;
                 net_grav += force;
             }
-            x.update(info, net_grav);
+            x.update(info, net_grav, wh);
             x.draw(drawer, arrow, net_grav, net_grav);
         }
     }

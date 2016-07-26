@@ -32,8 +32,14 @@ impl<'a> DerefMut for Object<'a>{
     }
 }
 
-const W: f32 = super::WIDTH  as f32 / 2.;
-const H: f32 = super::HEIGHT as f32 / 2.;
+#[derive(Eq, PartialEq)]
+enum OutOfBoundsBehaviour{
+    Wrap, Bounce
+}
+
+use self::OutOfBoundsBehaviour::*;
+
+const OOBB: OutOfBoundsBehaviour = Wrap;
 
 impl<'a> Object<'a>{
     #[inline]
@@ -57,26 +63,45 @@ impl<'a> Object<'a>{
     }
 
     #[inline]
-    pub fn update(&mut self, info: &FrameInfo, force: Vector2<f32>){
+    pub fn update(&mut self, info: &FrameInfo, force: Vector2<f32>, (w, h): (f32, f32)){
         (self.update_f)(&mut self.inner, info);
 
-        self.pos += self.vel * info.delta as f32;
-        self.vel += force / self.mass;
+        let &mut InnerObject{ref mut pos, ref mut vel, mass, ..} = self.deref_mut();
 
-        {
-            let Vector2(ref mut x, ref mut y) = self.pos;
+        *pos += *vel * info.delta as f32;
+        *vel += force / mass;
 
-            if *x < -W {
-                *x += W * 2.
-            }
-            if *x > W {
-                *x -= W * 2.
-            }
-            if *y < -H {
-                *y += H * 2.
-            }
-            if *y > H {
-                *y -= H * 2.
+        let &mut Vector2(ref mut x, ref mut y) = pos;
+        let &mut Vector2(ref mut vx, ref mut vy) = vel;
+
+        match OOBB{
+            Wrap => {
+                if *x < -w {
+                    *x += w * 2.
+                }
+                if *x > w {
+                    *x -= w * 2.
+                }
+                if *y < -h {
+                    *y += h * 2.
+                }
+                if *y > h {
+                    *y -= h * 2.
+                }
+            },
+            Bounce => {
+                if *x < -w {
+                    *vx = vx.abs()
+                }
+                if *x > w {
+                    *vx = -vx.abs()
+                }
+                if *y < -h {
+                    *vy = vy.abs()
+                }
+                if *y > h {
+                    *vy = -vy.abs()
+                }
             }
         }
     }
