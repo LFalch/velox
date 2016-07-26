@@ -32,14 +32,7 @@ impl<'a> DerefMut for Object<'a>{
     }
 }
 
-#[derive(Eq, PartialEq)]
-enum OutOfBoundsBehaviour{
-    Wrap, Bounce, Stop
-}
-
-use self::OutOfBoundsBehaviour::*;
-
-const OOBB: OutOfBoundsBehaviour = Wrap;
+use ::OutOfBoundsBehaviour::{self, Wrap, Bounce, Stop};
 
 impl<'a> Object<'a>{
     #[inline]
@@ -63,7 +56,7 @@ impl<'a> Object<'a>{
     }
 
     #[inline]
-    pub fn update(&mut self, info: &FrameInfo, force: Vector2<f32>, (w, h): (f32, f32)){
+    pub fn update(&mut self, info: &FrameInfo, force: Vector2<f32>, (w, h): (f32, f32), oobb: OutOfBoundsBehaviour){
         (self.update_f)(&mut self.inner, info);
 
         let &mut InnerObject{ref mut pos, ref mut vel, mass, ..} = self.deref_mut();
@@ -74,7 +67,7 @@ impl<'a> Object<'a>{
         let &mut Vector2(ref mut x, ref mut y) = pos;
         let &mut Vector2(ref mut vx, ref mut vy) = vel;
 
-        match OOBB{
+        match oobb{
             Wrap => {
                 if *x < -w {
                     *x += w * 2.
@@ -124,7 +117,7 @@ impl<'a> Object<'a>{
         }
     }
     #[inline]
-    pub fn draw(&self, drawer: &mut Drawer, arrow: &Texture, net_grav: Vector2<f32>, net_force: Vector2<f32>){
+    pub fn draw(&self, drawer: &mut Drawer, arrow: Option<&Texture>, net_grav: Vector2<f32>, net_force: Vector2<f32>){
         let vel = self.vel;
         let pos = self.pos;
 
@@ -135,37 +128,39 @@ impl<'a> Object<'a>{
             .rotation(self.rot)
             .draw(drawer);
 
-        let arrow_drawer = arrow.drawer();
+        if let Some(arrow) = arrow{
+            let arrow_drawer = arrow.drawer();
 
-        if vel.length() != 0.{
-            //Draws a red arrow pointing in the direction of the velocity.
-            let mut arrow_vec = vel.normalise() * 40.;
-            arrow_vec.1 *= 1.;
-            arrow_drawer.clone()
+            if vel.length() != 0.{
+                //Draws a red arrow pointing in the direction of the velocity.
+                let mut arrow_vec = vel.normalise() * 40.;
+                arrow_vec.1 *= 1.;
+                arrow_drawer.clone()
                 .pos((arrow_vec + pos).into())
                 .rotation(vel.direction())
                 .colour([1., 0., 0., 1.])
                 .draw(drawer);
-        }
-        if net_grav.length() != 0.{
-            //Draws a green arrow pointing in the direction of the net gravitational force being put on the body.
-            let mut arrow_vec = net_grav.normalise() * 48.;
-            arrow_vec.1 *= 1.;
-            arrow_drawer.clone()
+            }
+            if net_grav.length() != 0.{
+                //Draws a green arrow pointing in the direction of the net gravitational force being put on the body.
+                let mut arrow_vec = net_grav.normalise() * 48.;
+                arrow_vec.1 *= 1.;
+                arrow_drawer.clone()
                 .pos((arrow_vec + pos).into())
                 .rotation(net_grav.direction())
                 .colour([0., 1., 0., 1.])
                 .draw(drawer);
-        }
-        if net_force.length() != 0.{
-            //Draws a blue arrow pointing in the direction of the net force being put on the body.
-            let mut arrow_vec = net_force.normalise() * 32.;
-            arrow_vec.1 *= 1.;
-            arrow_drawer.clone()
+            }
+            if net_force.length() != 0.{
+                //Draws a blue arrow pointing in the direction of the net force being put on the body.
+                let mut arrow_vec = net_force.normalise() * 32.;
+                arrow_vec.1 *= 1.;
+                arrow_drawer.clone()
                 .pos((arrow_vec + pos).into())
                 .rotation(net_force.direction())
                 .colour([0., 0., 1., 1.])
                 .draw(drawer);
+            }
         }
     }
 }
@@ -173,6 +168,10 @@ impl<'a> Object<'a>{
 #[inline]
 pub fn new_player(tex: &Texture) -> Object{
     Object::with_update(tex, player_update, Vector2(0., 0.), 10., 32.)
+}
+
+pub fn laser_update(laser: &mut InnerObject, _info: &FrameInfo){
+    laser.rot = laser.vel.direction();
 }
 
 fn player_update(player: &mut InnerObject, info: &FrameInfo){
