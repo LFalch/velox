@@ -34,7 +34,7 @@ impl<'a> DerefMut for Object<'a>{
 
 #[derive(Eq, PartialEq)]
 enum OutOfBoundsBehaviour{
-    Wrap, Bounce
+    Wrap, Bounce, Stop
 }
 
 use self::OutOfBoundsBehaviour::*;
@@ -101,6 +101,24 @@ impl<'a> Object<'a>{
                 }
                 if *y > h {
                     *vy = -vy.abs()
+                }
+            },
+            Stop => {
+                if *x < -w {
+                    *x = -w;
+                    *vx = 0.;
+                }
+                if *x > w {
+                    *x =  w;
+                    *vx = 0.;
+                }
+                if *y < -h {
+                    *y = -h;
+                    *vy = 0.;
+                }
+                if *y > h {
+                    *y =  h;
+                    *vy = 0.;
                 }
             }
         }
