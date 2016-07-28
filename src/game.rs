@@ -27,7 +27,8 @@ impl<'a> Drop for SpaceShooter<'a>{
 
         let (len, mut min, mut max, mut sum) = (self.deltas.len(), ::std::f64::MAX, 0f64, 0.);
 
-        for n in self.deltas.drain(..){
+        // Skip the first two 'cause they're normally too high.
+        for n in self.deltas.drain(..).skip(2){
             min = min.min(n);
             max = max.max(n);
             sum += n;
