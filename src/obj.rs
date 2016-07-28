@@ -4,7 +4,8 @@ use korome::*;
 
 #[derive(Debug, Copy, Clone)]
 pub struct InnerObject{
-    pub radius: f32,
+    pub health: u32,
+    pub diameter: f32,
     pub rot: f32,
     pub mass: f32,
     pub pos: Vector2<f32>,
@@ -14,7 +15,6 @@ pub struct InnerObject{
 pub struct Object<'a>{
     inner: InnerObject,
     tex: &'a Texture,
-    update_f: Box<FnMut(&mut InnerObject, &FrameInfo)>,
 }
 
 impl<'a> Deref for Object<'a>{
@@ -36,17 +36,12 @@ use ::OutOfBoundsBehaviour::{self, Wrap, Bounce, Stop};
 
 impl<'a> Object<'a>{
     #[inline]
-    pub fn new(tex: &'a Texture, pos: Vector2<f32>, radius: f32, mass: f32) -> Self{
-        Object::with_update(tex, |_, _| (), pos, radius, mass)
-    }
-
-    pub fn with_update<F>(tex: &'a Texture, update: F, pos: Vector2<f32>, radius: f32, mass: f32) -> Self
-    where F: 'static + FnMut(&mut InnerObject, &FrameInfo){
+    pub fn new(tex: &'a Texture, pos: Vector2<f32>, health: u32, diameter: f32, mass: f32) -> Self{
         Object{
             tex: tex,
-            update_f: Box::new(update),
             inner: InnerObject{
-                radius: radius,
+                health: health,
+                diameter: diameter,
                 mass: mass,
                 rot: 0.,
                 pos: pos,
@@ -54,11 +49,7 @@ impl<'a> Object<'a>{
             }
         }
     }
-
-    #[inline]
     pub fn update(&mut self, info: &FrameInfo, force: Vector2<f32>, (w, h): (f32, f32), oobb: OutOfBoundsBehaviour){
-        (self.update_f)(&mut self.inner, info);
-
         let &mut InnerObject{ref mut pos, ref mut vel, mass, ..} = self.deref_mut();
 
         *pos += *vel * info.delta as f32;
@@ -116,12 +107,11 @@ impl<'a> Object<'a>{
             }
         }
     }
-    #[inline]
     pub fn draw(&self, drawer: &mut Drawer, arrow: Option<&Texture>, net_grav: Vector2<f32>, net_force: Vector2<f32>){
         let vel = self.vel;
         let pos = self.pos;
 
-        // draw_blue_circle(radius, self.inner.pos);
+        // draw_blue_circle(diameter, self.inner.pos);
 
         self.tex.drawer()
             .pos(pos.into())
@@ -142,7 +132,7 @@ impl<'a> Object<'a>{
                 .draw(drawer);
             }
             if net_grav.length() != 0.{
-                //Draws a green arrow pointing in the direction of the net gravitational force being put on the body.
+                //Draws a green arrow pointing in the direction of the net gravitational force being put on the Object.
                 let mut arrow_vec = net_grav.normalise() * 48.;
                 arrow_vec.1 *= 1.;
                 arrow_drawer.clone()
@@ -152,7 +142,7 @@ impl<'a> Object<'a>{
                 .draw(drawer);
             }
             if net_force.length() != 0.{
-                //Draws a blue arrow pointing in the direction of the net force being put on the body.
+                //Draws a blue arrow pointing in the direction of the net force being put on the Object.
                 let mut arrow_vec = net_force.normalise() * 32.;
                 arrow_vec.1 *= 1.;
                 arrow_drawer.clone()
@@ -167,35 +157,16 @@ impl<'a> Object<'a>{
 
 #[inline]
 pub fn new_player(tex: &Texture) -> Object{
-    Object::with_update(tex, player_update, Vector2(0., 0.), 10., 32.)
+    Object::new(tex, Vector2(0., 0.), 3, 10., 32.)
 }
 
-pub fn laser_update(laser: &mut InnerObject, _info: &FrameInfo){
-    laser.rot = laser.vel.direction();
-}
-
-fn player_update(player: &mut InnerObject, info: &FrameInfo){
-    let delta = info.delta as f32;
-
-    let mut acceleration = 0.;
-
-    is_down!{info;
-        D, Right => {
-            player.rot -= 2. * delta
-        },
-        A, Left => {
-            player.rot += 2. * delta
-        },
-        S, Down => {
-            acceleration -= 52. * delta
-        },
-        W, Up => {
-            acceleration += 52. * delta;
-        },
-        LShift => {
-            acceleration *= 7.;
-        }
+pub fn new_laser(tex: &Texture, pos: Vector2<f32>, direction: f32) -> Object{
+    let unit = Vector2::unit_vector(direction);
+    let mut laser = Object::new(tex, pos + unit * 32., 3, 32., 1e-10);
+    {
+        let &mut InnerObject{ref mut vel, ref mut rot,..} = laser.deref_mut();
+        *vel = Vector2::unit_vector(direction) * 800.;
+        *rot = direction;
     }
-
-    player.vel += Vector2::<f32>::unit_vector(player.rot) * acceleration;
+    laser
 }
