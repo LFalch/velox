@@ -12,41 +12,43 @@ pub struct SpaceShooter<'a>{
     laser : &'a Texture,
     oobb  : OutOfBoundsBehaviour,
     dbg_a : bool,
-    deltas: Vec<f64>,
+    deltas: Option<Vec<f64>>,
 }
 
 use std::ops::Drop;
 
 impl<'a> Drop for SpaceShooter<'a>{
     fn drop(&mut self){
-        use std::fs::File;
-        use std::io::{Write, BufWriter};
+        if let Some(ref mut deltas) = self.deltas{
+            use std::fs::File;
+            use std::io::{Write, BufWriter};
 
-        let file = File::create("deltas.log").unwrap();
-        let mut writer = BufWriter::new(file);
+            let file = File::create("deltas.log").unwrap();
+            let mut writer = BufWriter::new(file);
 
-        let (len, mut min, mut max, mut sum) = (self.deltas.len(), ::std::f64::MAX, 0f64, 0.);
+            let (len, mut min, mut max, mut sum) = (deltas.len(), ::std::f64::MAX, 0f64, 0.);
 
-        // Skip the first two 'cause they're normally too high.
-        for n in self.deltas.drain(..).skip(2){
-            min = min.min(n);
-            max = max.max(n);
-            sum += n;
+            // Skip the first two 'cause they're normally too high.
+            for n in deltas.drain(..).skip(2){
+                min = min.min(n);
+                max = max.max(n);
+                sum += n;
 
-            writer.write_fmt(format_args!("{}s ~ {}fps\n", n, 1./n)).unwrap()
+                writer.write_fmt(format_args!("{}s ~ {}fps\n", n, 1./n)).unwrap()
+            }
+
+            let avg = sum/len as f64;
+
+            println!("\nTotal  : {}s", sum);
+            println!("Best   : {}s ~ {}fps", min, 1./min);
+            println!("Worst  : {}s ~ {}fps", max, 1./max);
+            println!("Average: {}s ~ {}fps", avg, 1./avg);
         }
-
-        let avg = sum/len as f64;
-
-        println!("Total  : {}s", sum);
-        println!("Best   : {}s ~ {}fps", min, 1./min);
-        println!("Worst  : {}s ~ {}fps", max, 1./max);
-        println!("Average: {}s ~ {}fps", avg, 1./avg);
     }
 }
 
 impl<'a> SpaceShooter<'a>{
-    pub fn new(planet: &'a Texture, player: &'a Texture, sun: &'a Texture, arrow: &'a Texture, laser: &'a Texture) -> Self{
+    pub fn new(deltas: bool, planet: &'a Texture, player: &'a Texture, sun: &'a Texture, arrow: &'a Texture, laser: &'a Texture) -> Self{
         let mut objs = ObjSystem::new();
         objs.players.push(new_player(player));
 
@@ -59,7 +61,7 @@ impl<'a> SpaceShooter<'a>{
             laser : laser,
             oobb  : Bounce,
             dbg_a : true,
-            deltas: Vec::with_capacity(10_000),
+            deltas: if deltas{Some(Vec::with_capacity(10_000))}else{None},
         }
     }
 
@@ -101,7 +103,7 @@ macro_rules! when_released{
 
 impl<'a> Game for SpaceShooter<'a>{
     fn frame(&mut self, info: FrameInfo, mut drawer: Drawer) -> GameUpdate{
-        self.deltas.push(info.delta);
+        self.deltas.as_mut().map(|d| d.push(info.delta));
 
         when_released!{info;
             Escape => {
@@ -138,7 +140,7 @@ impl<'a> Game for SpaceShooter<'a>{
             Q => {
                 let ObjSystem{players: ref a, bodies: ref b, projectiles: ref c} = self.objs;
 
-                println!("{}::{}:{}:{}", self.deltas.capacity(), a.capacity(), b.capacity(), c.capacity());
+                println!("{}::{}:{}:{}", self.deltas.as_ref().map(Vec::capacity).unwrap_or_default(), a.capacity(), b.capacity(), c.capacity());
             },
             Z => {
                 let ObjSystem{players: ref mut a, bodies: ref mut b, projectiles: ref mut c} = self.objs;
@@ -203,11 +205,15 @@ fn gravity(x: &InnerObject, y: &InnerObject) -> Vector2<f32>{
     let dir_towards_body = x.pos.direction_to(y.pos);
 
     let force = Vector2::unit_vector(dir_towards_body) * g_force;
-    if !(force.0.is_nan() || force.1.is_nan()){
+    if !force.is_nan(){
         force
     }else{
         Vector2(0., 0.)
     }
+}
+
+fn inners(x: &Vec<Object>) -> Vec<InnerObject>{
+    x.iter().map(|x| **x).collect()
 }
 
 impl<'a> ObjSystem<'a>{
@@ -217,34 +223,35 @@ impl<'a> ObjSystem<'a>{
     }
 
     pub fn update(&mut self, info: &FrameInfo, drawer: &mut Drawer, arrow: Option<&Texture>, oobb: OutOfBoundsBehaviour){
-        let (_pls, bs, _prs) = self.all_inners();
+        let bs = inners(&self.bodies);
         let wh = drawer.graphics.get_h_size();
         let delta = info.delta as f32;
+
+        let (mut acceleration, mut rot) = (0., 0.);
+        is_down!{info;
+            D, Right => {
+                rot -= 2. * delta
+            },
+            A, Left => {
+                rot += 2. * delta
+            },
+            S, Down => {
+                acceleration -= 52. * delta
+            },
+            W, Up => {
+                acceleration += 52. * delta;
+            },
+            LShift => {
+                acceleration *= 7.;
+            }
+        }
 
         for player in self.players.iter_mut(){
             let net_grav = bs.iter().fold(Vector2(0., 0.), |n_g, y| n_g + gravity(&player, y));
 
-            let mut acceleration = 0.;
-            is_down!{info;
-                D, Right => {
-                    player.rot -= 2. * delta
-                },
-                A, Left => {
-                    player.rot += 2. * delta
-                },
-                S, Down => {
-                    acceleration -= 52. * delta
-                },
-                W, Up => {
-                    acceleration += 52. * delta;
-                },
-                LShift => {
-                    acceleration *= 7.;
-                }
-            }
-
             let propulsion_force = Vector2::<f32>::unit_vector(player.rot) * acceleration;
 
+            player.rot += rot;
             player.vel += propulsion_force;
 
             player.update(info, net_grav, wh, oobb);
@@ -264,14 +271,6 @@ impl<'a> ObjSystem<'a>{
             projectile.update(info, net_grav, wh, oobb);
             projectile.draw(drawer, arrow, net_grav, net_grav);
         }
-    }
-
-    pub fn all_inners(&self) -> (Vec<InnerObject>, Vec<InnerObject>, Vec<InnerObject>){
-        fn inners(x: &Vec<Object>) -> Vec<InnerObject>{
-            x.iter().map(|x| **x).collect()
-        }
-
-        (inners(&self.players), inners(&self.bodies), inners(&self.projectiles))
     }
 
     pub fn len(&self) -> usize{

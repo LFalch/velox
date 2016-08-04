@@ -1,6 +1,8 @@
 #[macro_use]
 extern crate korome;
 
+use std::env::args;
+
 use korome::*;
 
 mod game;
@@ -24,7 +26,7 @@ fn main() {
 
     textures!(graphics; planet, ship, sun, arrow, laser);
 
-    let this = SpaceShooter::new(&planet, &ship, &sun, &arrow, &laser);
+    let this = SpaceShooter::new(args().any(|a| a == "--deltas"), &planet, &ship, &sun, &arrow, &laser);
 
     run_until_closed(graphics, this);
 }
