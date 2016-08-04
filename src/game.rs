@@ -246,7 +246,9 @@ impl<'a> ObjSystem<'a>{
             }
         }
 
-        for player in self.players.iter_mut(){
+        let mut indices_to_die = [Vec::new(), Vec::new(), Vec::new()];
+
+        for (i, player) in self.players.iter_mut().enumerate(){
             let net_grav = bs.iter().fold(Vector2(0., 0.), |n_g, y| n_g + gravity(&player, y));
 
             let propulsion_force = Vector2::<f32>::unit_vector(player.rot) * acceleration;
@@ -256,20 +258,54 @@ impl<'a> ObjSystem<'a>{
 
             player.update(info, net_grav, wh, oobb);
             player.draw(drawer, arrow, net_grav, net_grav+propulsion_force);
+
+            if player.health == 0{
+                indices_to_die[0].push(i);
+            }
         }
         for (i, body) in self.bodies.iter_mut().enumerate(){
             let net_grav = bs.iter().enumerate().filter_map(|(j, y)| if i==j{None}else{Some(y)}).fold(Vector2(0., 0.), |n_g, y| n_g + gravity(&body, y));
 
             body.update(info, net_grav, wh, oobb);
             body.draw(drawer, arrow, net_grav, net_grav);
+
+            if body.health == 0{
+                indices_to_die[1].push(i);
+            }
         }
-        for projectile in self.projectiles.iter_mut(){
+        for (i, projectile) in self.projectiles.iter_mut().enumerate(){
             let net_grav = bs.iter().fold(Vector2(0., 0.), |n_g, y| n_g + gravity(&projectile, y));
 
             projectile.rot = projectile.vel.direction();
 
             projectile.update(info, net_grav, wh, oobb);
             projectile.draw(drawer, arrow, net_grav, net_grav);
+
+            for player in self.players.iter_mut(){
+                if projectile.pos.distance_to(player.pos) - player.diameter/2. <= 16.{
+                    player.health = player.health.saturating_sub(1);
+                    indices_to_die[2].push(i);
+                }
+            }
+            for body in self.bodies.iter_mut(){
+                if projectile.pos.distance_to(body.pos) - body.diameter/2. <= 16.{
+                    body.health = body.health.saturating_sub(1);
+                    indices_to_die[2].push(i);
+                }
+            }
+        }
+        for v in &mut indices_to_die{
+            v.sort();
+            v.dedup();
+        }
+        for &i in indices_to_die[0].iter().rev(){
+            self.players.remove(i);
+        }
+        for &i in indices_to_die[1].iter().rev(){
+            self.bodies.remove(i);
+        }
+        for &i in indices_to_die[2].iter().rev(){
+            self.projectiles.remove(i);
         }
     }
 
