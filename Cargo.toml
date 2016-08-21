@@ -3,5 +3,8 @@ name = "space-shooter"
 version = "0.1.0-wip"
 authors = ["LFalch <lucas@wasd.dk>"]
 
+[dependencies]
+simple-vector2d = "0.1"
+
 [dependencies.korome]
-version = "0.12"
+version = "0.13"

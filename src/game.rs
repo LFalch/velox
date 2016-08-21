@@ -1,4 +1,5 @@
 use ::korome::*;
+use ::Vector2;
 use ::obj::*;
 
 use std::ops::Deref;
@@ -12,7 +13,7 @@ pub struct SpaceShooter<'a>{
     laser : &'a Texture,
     oobb  : OutOfBoundsBehaviour,
     dbg_a : bool,
-    deltas: Option<Vec<f64>>,
+    deltas: Option<Vec<f32>>,
 }
 
 use std::ops::Drop;
@@ -26,7 +27,7 @@ impl<'a> Drop for SpaceShooter<'a>{
             let file = File::create("deltas.log").unwrap();
             let mut writer = BufWriter::new(file);
 
-            let (len, mut min, mut max, mut sum) = (deltas.len(), ::std::f64::MAX, 0f64, 0.);
+            let (len, mut min, mut max, mut sum) = (deltas.len(), ::std::f32::MAX, 0f32, 0.);
 
             // Skip the first two 'cause they're normally too high.
             for n in deltas.drain(..).skip(2){
@@ -37,7 +38,7 @@ impl<'a> Drop for SpaceShooter<'a>{
                 writer.write_fmt(format_args!("{}s ~ {}fps\n", n, 1./n)).unwrap()
             }
 
-            let avg = sum/len as f64;
+            let avg = sum/len as f32;
 
             println!("\nTotal  : {}s", sum);
             println!("Best   : {}s ~ {}fps", min, 1./min);
@@ -102,12 +103,12 @@ macro_rules! when_released{
 }
 
 impl<'a> Game for SpaceShooter<'a>{
-    fn frame(&mut self, info: FrameInfo, mut drawer: Drawer) -> GameUpdate{
+    fn frame(&mut self, info: &FrameInfo, drawer: &mut Drawer) -> GameUpdate{
         self.deltas.as_mut().map(|d| d.push(info.delta));
 
         when_released!{info;
             Escape => {
-                return GameUpdate::nothing().set_close(true)
+                return GameUpdate::Close
             },
             M => {
                 self.oobb = match self.oobb{
@@ -179,9 +180,9 @@ impl<'a> Game for SpaceShooter<'a>{
         }
 
         drawer.clear(0., 0., 0.);
-        self.objs.update(&info, &mut drawer, if self.dbg_a{Some(self.arrow)}else{None}, self.oobb);
+        self.objs.update(info, drawer, if self.dbg_a{Some(self.arrow)}else{None}, self.oobb);
 
-        GameUpdate::nothing()
+        GameUpdate::Nothing
     }
 }
 
@@ -205,7 +206,7 @@ fn gravity(x: &InnerObject, y: &InnerObject) -> Vector2<f32>{
     let dir_towards_body = x.pos.direction_to(y.pos);
 
     let force = Vector2::unit_vector(dir_towards_body) * g_force;
-    if !force.is_nan(){
+    if !force.is_any_nan(){
         force
     }else{
         Vector2(0., 0.)

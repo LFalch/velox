@@ -1,6 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
-use korome::*;
+use korome::{Texture, FrameInfo, Drawer};
+use ::Vector2;
 
 #[derive(Debug, Copy, Clone)]
 pub struct InnerObject{
