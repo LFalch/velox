@@ -2,34 +2,48 @@
 extern crate korome;
 extern crate simple_vector2d;
 
-use std::env::args;
-
 use korome::*;
 
-pub use simple_vector2d::Vector2;
+macro_rules! when{
+    ($info:expr; $($state:expr, $key:ident => $b:block),+) => {
+        for ke in $info.get_key_events(){
+            match *ke{
+                $(($state, ::korome::VirtualKeyCode::$key) => $b,)+
+                _ => ()
+            }
+        }
+    };
+}
+macro_rules! when_mouse {
+    ($info:expr; $($state:expr, $key:ident => $b:block),+) => {
+        for ke in $info.get_mouse_events(){
+            match *ke{
+                $(($state, ::korome::MouseButton::$key) => $b,)+
+                _ => ()
+            }
+        }
+    };
+}
 
 mod game;
-use game::SpaceShooter;
-
-mod obj;
+use game::SpaceShooterBuilder;
 
 macro_rules! textures {
     ($graphics:ident; $($tex:ident),*) => ($(
-        let $tex = Texture::from_png_bytes(&$graphics, include_bytes!(concat!("tex/", stringify!($tex), ".png"))).unwrap();
+        let $tex = Texture::from_file(&$graphics, concat!("tex/", stringify!($tex), ".png")).unwrap();
     )*);
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub enum OutOfBoundsBehaviour{
-    Wrap, Bounce, Stop
-}
-
 fn main() {
-    let graphics = Graphics::new("SPACE-SHOOTER", 1200, 900).unwrap();
-
+    let graphics = Graphics::new("Space Shooter WIP", 1200, 900).unwrap();
     textures!(graphics; planet, ship, sun, arrow, laser);
-
-    let this = SpaceShooter::new(args().any(|a| a == "--deltas"), &planet, &ship, &sun, &arrow, &laser);
+    let this = SpaceShooterBuilder{
+        planet: &planet,
+        ship: &ship,
+        sun: &sun,
+        arrow: &arrow,
+        laser: &laser
+    }.finish();
 
     run_until_closed(graphics, this);
 }
