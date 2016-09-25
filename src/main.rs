@@ -30,7 +30,10 @@ use game::SpaceShooterBuilder;
 
 macro_rules! textures {
     ($graphics:ident; $($tex:ident),*) => ($(
-        let $tex = Texture::from_file(&$graphics, concat!("tex/", stringify!($tex), ".png")).unwrap();
+        let $tex = match Texture::from_file(&$graphics, concat!("tex/", stringify!($tex), ".png")){
+            Ok(t) => t,
+            Err(_) => return println!(concat!("Failed to load texture ", stringify!($tex)))
+        }
     )*);
 }
 
