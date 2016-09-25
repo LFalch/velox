@@ -27,7 +27,7 @@ impl<'a> Drop for SpaceShooter<'a>{
             let file = File::create("deltas.log").unwrap();
             let mut writer = BufWriter::new(file);
 
-            let (len, mut min, mut max, mut sum) = (deltas.len(), ::std::f32::MAX, 0f32, 0.);
+            let (len, mut min, mut max, mut sum) = (deltas.len() as f32 - 2., ::std::f32::MAX, 0f32, 0.);
 
             // Skip the first two 'cause they're normally too high.
             for n in deltas.drain(..).skip(2){
@@ -35,15 +35,15 @@ impl<'a> Drop for SpaceShooter<'a>{
                 max = max.max(n);
                 sum += n;
 
-                writer.write_fmt(format_args!("{}s ~ {}fps\n", n, 1./n)).unwrap()
+                write!(writer, "{}s ~ {}fps\n", n, n.recip()).unwrap();
             }
 
             let avg = sum/len as f32;
 
             println!("\nTotal  : {}s", sum);
-            println!("Best   : {}s ~ {}fps", min, 1./min);
-            println!("Worst  : {}s ~ {}fps", max, 1./max);
-            println!("Average: {}s ~ {}fps", avg, 1./avg);
+            println!("Best   : {}s ~ {}fps", min, min.recip());
+            println!("Worst  : {}s ~ {}fps", max, max.recip());
+            println!("Average: {}s ~ {}fps", avg, avg.recip());
         }
     }
 }
@@ -141,7 +141,7 @@ impl<'a> Game for SpaceShooter<'a>{
             Q => {
                 let ObjSystem{players: ref a, bodies: ref b, projectiles: ref c} = self.objs;
 
-                println!("{}::{}:{}:{}", self.deltas.as_ref().map(Vec::capacity).unwrap_or_default(), a.capacity(), b.capacity(), c.capacity());
+                println!("{}::{}:{}:{}", if let Some(ref d) = self.deltas {d.capacity()}else{0}, a.capacity(), b.capacity(), c.capacity());
             },
             Z => {
                 let ObjSystem{players: ref mut a, bodies: ref mut b, projectiles: ref mut c} = self.objs;
@@ -194,8 +194,6 @@ pub struct ObjSystem<'a>{
 }
 
 const G: f32 = 6.671281903963040991511534289e-11;
-#[allow(dead_code)]
-const G_OLD: f32 = 6.67384E-11;
 
 use OutOfBoundsBehaviour::*;
 use OutOfBoundsBehaviour;
@@ -226,7 +224,7 @@ impl<'a> ObjSystem<'a>{
     pub fn update(&mut self, info: &FrameInfo, drawer: &mut Drawer, arrow: Option<&Texture>, oobb: OutOfBoundsBehaviour){
         let bs = inners(&self.bodies);
         let wh = drawer.graphics.get_h_size();
-        let delta = info.delta as f32;
+        let delta = info.delta;
 
         let (mut acceleration, mut rot) = (0., 0.);
         is_down!{info;
