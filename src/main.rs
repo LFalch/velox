@@ -7,6 +7,7 @@ use std::env::args;
 use korome::*;
 
 pub use simple_vector2d::Vector2;
+pub use simple_vector2d::consts as vector_consts;
 
 mod game;
 use game::SpaceShooter;

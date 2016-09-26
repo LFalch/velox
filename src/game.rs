@@ -200,17 +200,30 @@ const G_OLD: f32 = 6.67384E-11;
 use OutOfBoundsBehaviour::*;
 use OutOfBoundsBehaviour;
 
-fn gravity(x: &InnerObject, y: &InnerObject) -> Vector2<f32>{
-    let r = x.pos.distance_to(y.pos);
-    let g_force = (G * x.mass * y.mass) / (r * r);
+fn gravity_acceleration(x: &InnerObject, y: &InnerObject) -> Vector2<f32>{
+    let r_squared = (x.pos-y.pos).length_squared();
+    let g_acceleration = (G * y.mass) / r_squared;
     let dir_towards_body = x.pos.direction_to(y.pos);
 
-    let force = Vector2::unit_vector(dir_towards_body) * g_force;
-    if !force.is_any_nan(){
-        force
+    let acceleration = Vector2::unit_vector(dir_towards_body) * g_acceleration;
+    if !acceleration.is_any_nan(){
+        acceleration
     }else{
         Vector2(0., 0.)
     }
+}
+
+fn collision_impulse(x: &InnerObject, y: &InnerObject) -> Vector2<f32>{
+    let &InnerObject{vel: v1, mass: m1, pos: p1, ..} = x;
+    let &InnerObject{vel: v2, mass: m2, pos: p2, ..} = y;
+    let dist = p1-p2;
+
+    (2. * m2 * (v1 - v2).dot(dist)) / ((m1 + m2) * dist.length_squared()) * dist
+}
+
+pub type Vect = Vector2<f32>;
+fn calc_velocity_after_collision(m1: f32, m2: f32, v1: Vect, v2: Vect, dist: Vect) -> Vect{
+    v1 - (2. * m2 * (v1 - v2).dot(dist)) / ((m1 + m2) * dist.length_squared()) * dist
 }
 
 fn inners(x: &Vec<Object>) -> Vec<InnerObject>{
@@ -250,32 +263,47 @@ impl<'a> ObjSystem<'a>{
         let mut indices_to_die = [Vec::new(), Vec::new(), Vec::new()];
 
         for (i, player) in self.players.iter_mut().enumerate(){
-            let net_grav = bs.iter().fold(Vector2(0., 0.), |n_g, y| n_g + gravity(&player, y));
+            let net_grav = bs.iter().fold(Vector2(0., 0.), |n_g, y| n_g + gravity_acceleration(&player, y)) * info.delta;
 
-            let propulsion_force = Vector2::<f32>::unit_vector(player.rot) * acceleration;
+            let impulse = Vector2::<f32>::unit_vector(player.rot) * acceleration;
 
             player.rot += rot;
-            player.vel += propulsion_force;
+            let acceleration = net_grav+impulse;
 
-            player.update(info, net_grav, wh, oobb);
-            player.draw(drawer, arrow, net_grav, net_grav+propulsion_force);
+            player.update(info, acceleration, wh, oobb);
+            player.draw(drawer, arrow, net_grav, acceleration);
 
             if player.health == 0{
                 indices_to_die[0].push(i);
             }
         }
         for (i, body) in self.bodies.iter_mut().enumerate(){
-            let net_grav = bs.iter().enumerate().filter_map(|(j, y)| if i==j{None}else{Some(y)}).fold(Vector2(0., 0.), |n_g, y| n_g + gravity(&body, y));
+            let mut gravitational_acceleration = Vector2(0., 0.);
+            let mut collisional_impulse = Vector2(0., 0.);
+            let orig_vel = body.vel;
 
-            body.update(info, net_grav, wh, oobb);
-            body.draw(drawer, arrow, net_grav, net_grav);
+            for other_body in bs.iter().enumerate().filter_map(|(j, y)| if i==j{None}else{Some(y)}){
+                let dist = body.pos - other_body.pos;
+                if body.pos.distance_to(other_body.pos) < body.diameter/2.+other_body.diameter/2.{
+                    collisional_impulse -= collision_impulse(&body, other_body);
+                }
+
+                gravitational_acceleration += gravity_acceleration(&body, other_body);
+            }
+
+            gravitational_acceleration *= info.delta;
+
+            let acc = collisional_impulse+gravitational_acceleration;
+
+            body.update(info, acc, wh, oobb);
+            body.draw(drawer, arrow, gravitational_acceleration, acc);
 
             if body.health == 0{
                 indices_to_die[1].push(i);
             }
         }
         for (i, projectile) in self.projectiles.iter_mut().enumerate(){
-            let net_grav = bs.iter().fold(Vector2(0., 0.), |n_g, y| n_g + gravity(&projectile, y));
+            let net_grav = bs.iter().fold(Vector2(0., 0.), |n_g, y| n_g + gravity_acceleration(&projectile, y)) * info.delta;
 
             projectile.rot = projectile.vel.direction();
 

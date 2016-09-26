@@ -50,11 +50,11 @@ impl<'a> Object<'a>{
             }
         }
     }
-    pub fn update(&mut self, info: &FrameInfo, force: Vector2<f32>, (w, h): (f32, f32), oobb: OutOfBoundsBehaviour){
-        let &mut InnerObject{ref mut pos, ref mut vel, mass, ..} = self.deref_mut();
+    pub fn update(&mut self, info: &FrameInfo, impulse: Vector2<f32>, (w, h): (f32, f32), oobb: OutOfBoundsBehaviour){
+        let &mut InnerObject{ref mut pos, ref mut vel, ..} = self.deref_mut();
 
-        *pos += *vel * info.delta as f32;
-        *vel += force / mass;
+        *pos += *vel * info.delta;
+        *vel += impulse;
 
         let &mut Vector2(ref mut x, ref mut y) = pos;
         let &mut Vector2(ref mut vx, ref mut vy) = vel;
