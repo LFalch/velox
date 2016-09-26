@@ -1,42 +1,47 @@
-use korome::{Game, Texture, FrameInfo, Drawer, GameUpdate};
+use std::collections::HashMap;
+
+use korome::{Game, Texture, FrameInfo, Drawer, GameUpdate, Graphics};
 use simple_vector2d::Vector2;
 
 pub type Vect = Vector2<f32>;
 
-pub struct SpaceShooterBuilder<'a>{
-    pub planet: &'a Texture,
-    pub ship  : &'a Texture,
-    pub sun   : &'a Texture,
-    pub arrow : &'a Texture,
-    pub laser : &'a Texture,
-}
+#[derive(Default)]
+struct TextureBase(HashMap<String, Texture>);
 
-impl<'a> SpaceShooterBuilder<'a>{
-    pub fn finish(self) -> SpaceShooter<'a>{
-        let SpaceShooterBuilder{planet,ship,sun,arrow,laser} = self;
-        SpaceShooter{
-            planet: planet,
-            ship: ship,
-            sun: sun,
-            arrow: arrow,
-            laser: laser,
-            new_planet: None,
-            planets: Vec::new()
-        }
+fn create_texture(graphics: &Graphics, name: &str) -> Texture{
+    match Texture::from_file(graphics, format!("tex/{}.png", name)){
+        Ok(t) => t,
+        Err(_) => panic!("Failed to load texture {}", name)
     }
 }
 
-pub struct SpaceShooter<'a>{
-    pub planet: &'a Texture,
-    pub ship  : &'a Texture,
-    pub sun   : &'a Texture,
-    pub arrow : &'a Texture,
-    pub laser : &'a Texture,
+impl TextureBase {
+    fn load<S: ToString>(&mut self, graphics: &Graphics, name: S){
+        let s = name.to_string();
+        self.0.insert(name.to_string(), create_texture(graphics, &s));
+    }
+    fn get_tex<S: ToString>(&mut self, graphics: &Graphics, name: S) -> &Texture {
+        let s = name.to_string();
+        self.0.entry(s.clone()).or_insert_with(|| create_texture(graphics, &s))
+    }
+}
+
+#[derive(Default)]
+pub struct SpaceShooter{
+    texture_base: TextureBase,
     new_planet: Option<Vect>,
     planets: Vec<(Vect, Vect)>
 }
 
-impl<'a> Game for SpaceShooter<'a> {
+impl SpaceShooter {
+    pub fn new(graphics: &Graphics) -> Self{
+        let mut s: Self = Default::default();
+        s.texture_base.load(graphics, "planet");
+        s
+    }
+}
+
+impl Game for SpaceShooter {
     fn frame(&mut self, info: &FrameInfo, drawer: &mut Drawer) -> GameUpdate {
         when!{info;
             false, Escape => {
@@ -57,10 +62,12 @@ impl<'a> Game for SpaceShooter<'a> {
             }
         }
 
+        let planet_tex = self.texture_base.get_tex(drawer.graphics, "planet");
+
         let wh = drawer.graphics.get_h_size();
         drawer.clear(0., 0., 0.);
         for planet in &mut self.planets{
-            self.planet.drawer()
+            planet_tex.drawer()
                 .pos(planet.0.into())
                 .draw(drawer);
             planet.0 += planet.1 * info.delta;
@@ -68,7 +75,7 @@ impl<'a> Game for SpaceShooter<'a> {
             stay_in_bounds(&mut planet.0, wh);
         }
         if let Some(p) = self.new_planet{
-            self.planet.drawer()
+            planet_tex.drawer()
                 .pos(p.into())
                 .colour([0.5; 4])
                 .draw(drawer);

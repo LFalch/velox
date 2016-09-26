@@ -26,27 +26,11 @@ macro_rules! when_mouse {
 }
 
 mod game;
-use game::SpaceShooterBuilder;
-
-macro_rules! textures {
-    ($graphics:ident; $($tex:ident),*) => ($(
-        let $tex = match Texture::from_file(&$graphics, concat!("tex/", stringify!($tex), ".png")){
-            Ok(t) => t,
-            Err(_) => return println!(concat!("Failed to load texture ", stringify!($tex)))
-        }
-    )*);
-}
+use game::SpaceShooter;
 
 fn main() {
     let graphics = Graphics::new("Space Shooter WIP", 1200, 900).unwrap();
-    textures!(graphics; planet, ship, sun, arrow, laser);
-    let this = SpaceShooterBuilder{
-        planet: &planet,
-        ship: &ship,
-        sun: &sun,
-        arrow: &arrow,
-        laser: &laser
-    }.finish();
+    let this = SpaceShooter::new(&graphics);
 
     run_until_closed(graphics, this);
 }
