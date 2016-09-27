@@ -75,13 +75,25 @@ impl Game for SpaceShooter {
 
         let wh = drawer.graphics.get_h_size();
         drawer.clear(0., 0., 0.);
-        for planet in &mut self.planets{
+
+        let others: Vec<_> = self.planets.iter().cloned().collect();
+
+        for (i, planet) in self.planets.iter_mut().enumerate(){
             planet_tex.drawer()
             .pos(planet.position.into())
             .draw(drawer);
             planet.position += planet.velocity * info.delta;
 
             stay_in_bounds(&mut planet.position, wh);
+
+            for (j, &other) in others.iter().enumerate(){
+                let dist = planet.position - other.position;
+                let half_dist = dist.length()/2.;
+
+                if i != j && half_dist < 32.{
+                    planet.position += Vector2::unit_vector(dist.direction()) * (32. - half_dist);
+                }
+            }
         }
         if let Some(p) = self.new_planet{
             planet_tex.drawer()
@@ -98,7 +110,11 @@ impl Game for SpaceShooter {
         GameUpdate::Nothing
     }
 }
-
+/*
+fn collision(relative_velocity: Vect, dist: Vect) -> Vect{
+    /* (2. * m2)/(m1 + m2) * */ relative_velocity.dot(dist) / dist.length_squared() * dist
+}
+*/
 /// Wraps `p` if out of bounds
 fn stay_in_bounds(p: &mut Vect, (w, h): (f32, f32)) {
     if p.0 < -w{
