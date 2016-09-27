@@ -5,6 +5,10 @@ use simple_vector2d::Vector2;
 
 pub type Vect = Vector2<f32>;
 
+mod phys;
+
+use self::phys::BasicObject;
+
 #[derive(Default)]
 struct TextureBase(HashMap<String, Texture>);
 
@@ -30,7 +34,8 @@ impl TextureBase {
 pub struct SpaceShooter{
     texture_base: TextureBase,
     new_planet: Option<Vect>,
-    planets: Vec<(Vect, Vect)>
+    planets: Vec<BasicObject>,
+    player: BasicObject
 }
 
 impl SpaceShooter {
@@ -56,30 +61,37 @@ impl Game for SpaceShooter {
             },
             false, Left => {
                 if let Some(pos) = self.new_planet{
-                    self.planets.push((pos, pos-info.mousepos.into()));
+                    self.planets.push(BasicObject::new(pos, pos-info.mousepos.into()));
                     self.new_planet = None;
                 }
             }
         }
 
-        let planet_tex = self.texture_base.get_tex(drawer.graphics, "planet");
+        {
+            let planet_tex = self.texture_base.get_tex(drawer.graphics, "planet");
 
-        let wh = drawer.graphics.get_h_size();
-        drawer.clear(0., 0., 0.);
-        for planet in &mut self.planets{
-            planet_tex.drawer()
-                .pos(planet.0.into())
+            let wh = drawer.graphics.get_h_size();
+            drawer.clear(0., 0., 0.);
+            for planet in &mut self.planets{
+                planet_tex.drawer()
+                .pos(planet.position.into())
                 .draw(drawer);
-            planet.0 += planet.1 * info.delta;
+                planet.position += planet.velocity * info.delta;
 
-            stay_in_bounds(&mut planet.0, wh);
-        }
-        if let Some(p) = self.new_planet{
-            planet_tex.drawer()
+                stay_in_bounds(&mut planet.position, wh);
+            }
+            if let Some(p) = self.new_planet{
+                planet_tex.drawer()
                 .pos(p.into())
                 .colour([0.5; 4])
                 .draw(drawer);
+            }
         }
+
+        self.texture_base.get_tex(drawer.graphics, "player")
+            .drawer()
+            .pos(self.player.position.into())
+            .draw(drawer);
 
         GameUpdate::Nothing
     }
