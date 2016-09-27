@@ -24,9 +24,12 @@ impl TextureBase {
         let s = name.to_string();
         self.0.insert(name.to_string(), create_texture(graphics, &s));
     }
-    fn get_tex<S: ToString>(&mut self, graphics: &Graphics, name: S) -> &Texture {
-        let s = name.to_string();
-        self.0.entry(s.clone()).or_insert_with(|| create_texture(graphics, &s))
+    fn get_tex(&self, name: &str) -> &Texture {
+        if let Some(t) = self.0.get(name){
+            t
+        }else{
+            panic!("Texture {} not loaded", name)
+        }
     }
 }
 
@@ -42,6 +45,7 @@ impl SpaceShooter {
     pub fn new(graphics: &Graphics) -> Self{
         let mut s: Self = Default::default();
         s.texture_base.load(graphics, "planet");
+        s.texture_base.load(graphics, "ship");
         s
     }
 }
@@ -67,28 +71,26 @@ impl Game for SpaceShooter {
             }
         }
 
-        {
-            let planet_tex = self.texture_base.get_tex(drawer.graphics, "planet");
+        let planet_tex = self.texture_base.get_tex("planet");
 
-            let wh = drawer.graphics.get_h_size();
-            drawer.clear(0., 0., 0.);
-            for planet in &mut self.planets{
-                planet_tex.drawer()
-                .pos(planet.position.into())
-                .draw(drawer);
-                planet.position += planet.velocity * info.delta;
+        let wh = drawer.graphics.get_h_size();
+        drawer.clear(0., 0., 0.);
+        for planet in &mut self.planets{
+            planet_tex.drawer()
+            .pos(planet.position.into())
+            .draw(drawer);
+            planet.position += planet.velocity * info.delta;
 
-                stay_in_bounds(&mut planet.position, wh);
-            }
-            if let Some(p) = self.new_planet{
-                planet_tex.drawer()
-                .pos(p.into())
-                .colour([0.5; 4])
-                .draw(drawer);
-            }
+            stay_in_bounds(&mut planet.position, wh);
+        }
+        if let Some(p) = self.new_planet{
+            planet_tex.drawer()
+            .pos(p.into())
+            .colour([0.5; 4])
+            .draw(drawer);
         }
 
-        self.texture_base.get_tex(drawer.graphics, "player")
+        self.texture_base.get_tex("ship")
             .drawer()
             .pos(self.player.position.into())
             .draw(drawer);
