@@ -5,6 +5,7 @@ authors = ["LFalch <lucas@wasd.dk>"]
 
 [dependencies]
 simple-vector2d = "0.1"
+byteorder = "0.5"
 
 [dependencies.korome]
 version = "0.13"

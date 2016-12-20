@@ -2,6 +2,7 @@
 name = "space-shooter"
 version = "0.1.0-wip"
 dependencies = [
+ "byteorder 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "korome 0.13.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "simple-vector2d 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]

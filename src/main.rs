@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate korome;
 extern crate simple_vector2d;
+extern crate byteorder;
 
 use korome::*;
 
@@ -26,6 +27,7 @@ macro_rules! when_mouse {
 }
 
 mod game;
+mod serv;
 use game::SpaceShooter;
 
 fn main() {
