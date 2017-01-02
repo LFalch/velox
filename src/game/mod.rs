@@ -1,11 +1,15 @@
 use std::collections::HashMap;
+use std::net::UdpSocket;
 
 use korome::{Game, Texture, FrameInfo, Drawer, GameUpdate, Graphics};
 use simple_vector2d::Vector2;
+use bincode::rustc_serialize::{encode, decode};
+use bincode::SizeLimit;
 
 pub type Vect = Vector2<f32>;
 
 mod phys;
+pub mod serv;
 
 use self::phys::BasicObject;
 
@@ -33,20 +37,32 @@ impl TextureBase {
     }
 }
 
-#[derive(Default)]
 pub struct SpaceShooter {
     texture_base: TextureBase,
     new_planet: Option<Vect>,
-    planets: Vec<BasicObject>,
     player: BasicObject,
+    socket: UdpSocket,
+    synced: bool
 }
 
 impl SpaceShooter {
     pub fn new(graphics: &Graphics) -> Self {
-        let mut s = Self::default();
-        s.texture_base.load(graphics, "planet");
-        s.texture_base.load(graphics, "ship");
-        s
+        SpaceShooter {
+            texture_base: {
+                let mut tb = TextureBase::default();
+                tb.load(graphics, "planet");
+                tb.load(graphics, "ship");
+                tb
+            },
+            synced: false,
+            new_planet: Default::default(),
+            player: Default::default(),
+            socket: {
+                let s = UdpSocket::bind(("127.0.0.1:0")).unwrap();
+                s.connect("127.0.0.1:7351").unwrap();
+                s
+            }
+        }
     }
 }
 
@@ -65,7 +81,9 @@ impl Game for SpaceShooter {
             },
             false, Left => {
                 if let Some(pos) = self.new_planet{
-                    self.planets.push(BasicObject::new(pos, pos-info.mousepos.into()));
+                    let new = encode(&BasicObject::new(pos, pos-info.mousepos.into()), SizeLimit::Infinite).unwrap();
+                    self.socket.send(&new).unwrap();
+                    self.synced = true;
                     self.new_planet = None;
                 }
             }
@@ -73,28 +91,20 @@ impl Game for SpaceShooter {
 
         let planet_tex = self.texture_base.get_tex("planet");
 
-        let wh = drawer.graphics.get_h_size();
         drawer.clear(0., 0., 0.);
 
-        let others: Vec<_> = self.planets.iter().cloned().collect();
+        if self.synced {
+            let mut buf = [0u8; 1024];
+            let size = self.socket.recv(&mut buf).unwrap();
 
-        for (i, planet) in self.planets.iter_mut().enumerate() {
-            planet_tex.drawer()
+            let planets: Vec<BasicObject> = decode(&buf[..size]).unwrap();
+            for planet in planets.iter() {
+                planet_tex.drawer()
                 .pos(planet.position.into())
                 .draw(drawer);
-            planet.position += planet.velocity * info.delta;
-
-            stay_in_bounds(&mut planet.position, wh);
-
-            for (j, &other) in others.iter().enumerate() {
-                let dist = planet.position - other.position;
-                let half_dist = dist.length() / 2.;
-
-                if i != j && half_dist < 32. {
-                    planet.position += Vector2::unit_vector(dist.direction()) * (32. - half_dist);
-                }
             }
         }
+
         if let Some(p) = self.new_planet {
             planet_tex.drawer()
                 .pos(p.into())
@@ -114,19 +124,3 @@ impl Game for SpaceShooter {
 // fn collision(relative_velocity: Vect, dist: Vect) -> Vect{
 // (2. * m2)/(m1 + m2) * */ relative_velocity.dot(dist) / dist.length_squared() * dist
 // }
-//
-/// Wraps `p` if out of bounds
-fn stay_in_bounds(p: &mut Vect, (w, h): (f32, f32)) {
-    if p.0 < -w {
-        p.0 += 2. * w;
-    }
-    if p.0 > w {
-        p.0 -= 2. * w;
-    }
-    if p.1 < -h {
-        p.1 += 2. * h;
-    }
-    if p.1 > h {
-        p.1 -= 2. * h;
-    }
-}

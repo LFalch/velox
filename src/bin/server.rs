@@ -1,5 +1,5 @@
 extern crate space_shooter;
 
 fn main() {
-    space_shooter::main()
+    space_shooter::Server::new().run()
 }

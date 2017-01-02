@@ -1,6 +1,7 @@
 use super::Vect;
 
 #[derive(Default, Debug, Copy, Clone)]
+#[derive(RustcEncodable, RustcDecodable)]
 pub struct BasicObject {
     pub position: Vect,
     pub velocity: Vect,
