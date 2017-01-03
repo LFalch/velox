@@ -23,7 +23,7 @@ impl<'a> From<&'a RotatableObject> for RotatedPos {
     fn from(sp: &'a RotatableObject) -> Self {
         RotatedPos {
             pos: sp.obj.position,
-            rotation: (((sp.rotation + TAU) % TAU) * 256. / TAU) as u8
+            rotation: (sp.rotation * 256. / TAU) as u8
         }
     }
 }

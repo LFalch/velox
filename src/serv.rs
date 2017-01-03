@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::thread;
 
 use space_shooter::net::*;
-use space_shooter::obj::{Vector2, RotatableObject, RotatedPos, BasicObject, stay_in_bounds};
+use space_shooter::obj::{Vector2, RotatableObject, RotatedPos, BasicObject, TAU, stay_in_bounds};
 
 pub struct Server {
     planets: Vec<BasicObject>,
@@ -87,7 +87,7 @@ impl Server {
                         players.get_mut(&remote).map(|b| b.obj.velocity += v * Vector2::unit_vector(b.rotation));
                     }
                     ClientPacket::PlayerRotate(r) => {
-                        players.get_mut(&remote).map(|b| b.rotation += r);
+                        players.get_mut(&remote).map(|b| b.rotation = (b.rotation + r + TAU) % TAU);
                     }
                     ClientPacket::Shoot => {
                         let mut laser = players[&remote];
