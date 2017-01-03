@@ -8,13 +8,14 @@ use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use std::thread;
 
-use super::phys::{ServerPlayer, ClientPlayer, BasicObject};
+use super::phys::{RotatableObject, RotatedPos, BasicObject};
 use super::Vect;
 
 pub struct Server {
     planets: Vec<BasicObject>,
     server_socket: Arc<UdpSocket>,
-    players: Arc<Mutex<HashMap<SocketAddr, ServerPlayer>>>,
+    players: Arc<Mutex<HashMap<SocketAddr, RotatableObject>>>,
+    lasers: Arc<Mutex<Vec<RotatableObject>>>
 }
 
 #[derive(RustcEncodable, RustcDecodable)]
@@ -22,13 +23,15 @@ pub enum ClientPacket {
     Connect,
     PlayerImpulse(f32),
     PlayerRotate(f32),
+    Shoot,
     Disconnect
 }
 
 #[derive(RustcEncodable, RustcDecodable)]
 pub enum ServerPacket {
     Update{
-        players: Vec<ClientPlayer>,
+        players: Vec<RotatedPos>,
+        lasers: Vec<RotatedPos>,
         planets: Vec<Vect>
     }
 }
@@ -43,6 +46,7 @@ impl Server {
                 BasicObject::new(0., 0., -10., -2.),
                 BasicObject::new(0., 400., 50., -20.),
             ],
+            lasers: Arc::default(),
             players: Arc::default(),
             server_socket: Arc::new(UdpSocket::bind((Ipv4Addr::new(0, 0, 0, 0), 7351)).unwrap()),
         }
@@ -68,10 +72,15 @@ impl Server {
             player.obj.position += player.obj.velocity * delta;
             stay_in_bounds(&mut player.obj.position);
         }
+        for laser in self.lasers.lock().unwrap().iter_mut() {
+            laser.obj.position += laser.obj.velocity * delta;
+            stay_in_bounds(&mut laser.obj.position);
+        }
     }
     pub fn run(mut self) {
         let listener_server_socket = self.server_socket.clone();
         let listener_players = self.players.clone();
+        let listener_lasers = self.lasers.clone();
 
         let _listener = thread::spawn(move || {
             loop {
@@ -94,13 +103,18 @@ impl Server {
                 let mut players = listener_players.lock().unwrap();
                 match packet {
                     ClientPacket::Connect => {
-                        players.insert(remote, ServerPlayer::default());
+                        players.insert(remote, RotatableObject::default());
                     }
                     ClientPacket::PlayerImpulse(v) => {
                         players.get_mut(&remote).map(|b| b.obj.velocity += v * Vector2::unit_vector(b.rotation));
                     }
                     ClientPacket::PlayerRotate(r) => {
                         players.get_mut(&remote).map(|b| b.rotation += r);
+                    }
+                    ClientPacket::Shoot => {
+                        let mut laser = players[&remote];
+                        laser.obj.velocity += 150. * Vector2::unit_vector(laser.rotation);
+                        listener_lasers.lock().unwrap().push(laser);
                     }
                     ClientPacket::Disconnect => {
                         players.remove(&remote);
@@ -117,8 +131,14 @@ impl Server {
             self.update(dur.as_secs() as f32+ 1e-9 * dur.subsec_nanos() as f32);
             let planets: Vec<_> = self.planets.iter().map(|bo| bo.position).collect();
             let players: Vec<_> = self.players.lock().unwrap().values()
-                                              .map(ClientPlayer::from).collect();
-            let data = encode(&ServerPacket::Update{planets: planets, players: players}, SizeLimit::Infinite).unwrap();
+                                              .map(RotatedPos::from).collect();
+            let lasers: Vec<_> = self.lasers.lock().unwrap().iter()
+                                             .map(RotatedPos::from).collect();
+            let data = encode(&ServerPacket::Update{
+                planets: planets,
+                players: players,
+                lasers: lasers
+            }, SizeLimit::Infinite).unwrap();
             for addr in self.players.lock().unwrap().keys() {
                 self.server_socket.send_to(&data, addr).unwrap();
             }

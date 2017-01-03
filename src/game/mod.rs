@@ -38,7 +38,8 @@ impl TextureBase {
 pub struct SpaceShooter {
     texture_base: TextureBase,
     planets: Vec<Vect>,
-    players: Vec<phys::ClientPlayer>,
+    players: Vec<phys::RotatedPos>,
+    lasers: Vec<phys::RotatedPos>,
     socket: UdpSocket
 }
 
@@ -49,10 +50,12 @@ impl SpaceShooter {
                 let mut tb = TextureBase::default();
                 tb.load(graphics, "planet");
                 tb.load(graphics, "ship");
+                tb.load(graphics, "laser");
                 tb
             },
             planets: Default::default(),
             players: Default::default(),
+            lasers: Default::default(),
             socket: {
                 let s = UdpSocket::bind(("0.0.0.0:0")).unwrap();
                 s.connect(server).unwrap();
@@ -74,12 +77,22 @@ impl Drop for SpaceShooter {
 
 use self::serv::{ClientPacket, ServerPacket};
 
+impl SpaceShooter {
+    fn send_packet(&self, packet: ClientPacket) {
+        encode(&packet, SizeLimit::Infinite)
+            .map(|d| self.socket.send(&d).unwrap()).unwrap();
+    }
+}
+
 impl Game for SpaceShooter {
     type ReturnType = GameUpdate;
     fn frame(&mut self, info: &FrameInfo, drawer: &mut Drawer) -> GameUpdate {
         when!{info;
             false, Escape => {
                 return GameUpdate::Close
+            },
+            false, Space => {
+                self.send_packet(ClientPacket::Shoot)
             }
         }
         let mut impulse = 0.;
@@ -99,16 +112,15 @@ impl Game for SpaceShooter {
             }
         }
         if impulse != 0. {
-            encode(&ClientPacket::PlayerImpulse(impulse * 400. * info.delta), SizeLimit::Infinite)
-                .map(|d| self.socket.send(&d).unwrap()).unwrap();
+            self.send_packet(ClientPacket::PlayerImpulse(impulse * 400. * info.delta))
         }
         if rotation != 0. {
-            encode(&ClientPacket::PlayerRotate(rotation * 2. * info.delta), SizeLimit::Infinite)
-                .map(|d| self.socket.send(&d).unwrap()).unwrap();
+            self.send_packet(ClientPacket::PlayerRotate(rotation * 2. * info.delta))
         }
 
         let planet_tex = self.texture_base.get_tex("planet");
         let player_tex = self.texture_base.get_tex("ship");
+        let laser_tex = self.texture_base.get_tex("laser");
 
         drawer.clear(0., 0., 0.);
 
@@ -116,9 +128,10 @@ impl Game for SpaceShooter {
         let size = self.socket.recv(&mut buf).unwrap();
 
         match decode(&buf[..size]).unwrap() {
-            ServerPacket::Update{planets, players} => {
+            ServerPacket::Update{planets, players, lasers} => {
                 self.planets = planets;
                 self.players = players;
+                self.lasers = lasers;
             }
         }
 
@@ -132,6 +145,13 @@ impl Game for SpaceShooter {
             player_tex.drawer()
             .pos(player.pos.into())
             .rotation(player.rotation)
+            .draw(drawer);
+        }
+
+        for &laser in &self.lasers {
+            laser_tex.drawer()
+            .pos(laser.pos.into())
+            .rotation(laser.rotation)
             .draw(drawer);
         }
 

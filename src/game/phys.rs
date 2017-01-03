@@ -10,14 +10,14 @@ pub struct BasicObject {
 
 #[derive(Default, Debug, Copy, Clone)]
 #[derive(RustcEncodable, RustcDecodable)]
-pub struct ClientPlayer {
+pub struct RotatedPos {
     pub pos: Vect,
     pub rotation: f32
 }
 
-impl<'a> From<&'a ServerPlayer> for ClientPlayer {
-    fn from(sp: &'a ServerPlayer) -> Self {
-        ClientPlayer {
+impl<'a> From<&'a RotatableObject> for RotatedPos {
+    fn from(sp: &'a RotatableObject) -> Self {
+        RotatedPos {
             pos: sp.obj.position,
             rotation: sp.rotation
         }
@@ -26,7 +26,7 @@ impl<'a> From<&'a ServerPlayer> for ClientPlayer {
 
 #[derive(Default, Debug, Copy, Clone)]
 #[derive(RustcEncodable, RustcDecodable)]
-pub struct ServerPlayer {
+pub struct RotatableObject {
     pub obj: BasicObject,
     pub rotation: f32
 }
