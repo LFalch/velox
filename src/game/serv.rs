@@ -24,7 +24,8 @@ pub enum ClientPacket {
     PlayerImpulse(f32),
     PlayerRotate(f32),
     Shoot,
-    Disconnect
+    Disconnect,
+    Error
 }
 
 #[derive(RustcEncodable, RustcDecodable)]
@@ -33,7 +34,8 @@ pub enum ServerPacket {
         players: Vec<RotatedPos>,
         lasers: Vec<RotatedPos>,
         planets: Vec<Vect>
-    }
+    },
+    DisconnectAck
 }
 
 impl Server {
@@ -113,11 +115,20 @@ impl Server {
                     }
                     ClientPacket::Shoot => {
                         let mut laser = players[&remote];
-                        laser.obj.velocity += 150. * Vector2::unit_vector(laser.rotation);
+                        laser.obj.velocity += 400. * Vector2::unit_vector(laser.rotation);
                         listener_lasers.lock().unwrap().push(laser);
+                    }
+                    ClientPacket::Error => {
+                        let mut lasers = listener_lasers.lock().unwrap();
+                        for _ in 0..5 {
+                            lasers.remove(0);
+                        }
+                        println!("Laser count {}", lasers.len());
                     }
                     ClientPacket::Disconnect => {
                         players.remove(&remote);
+                        let data = encode(&ServerPacket::DisconnectAck, SizeLimit::Infinite).unwrap();
+                        listener_server_socket.send_to(&data, &remote).unwrap();
                     }
                 }
             }

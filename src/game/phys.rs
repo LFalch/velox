@@ -12,14 +12,18 @@ pub struct BasicObject {
 #[derive(RustcEncodable, RustcDecodable)]
 pub struct RotatedPos {
     pub pos: Vect,
-    pub rotation: f32
+    pub rotation: u8
 }
+
+use std::f32::consts::PI;
+
+pub const TAU: f32 = 2. * PI;
 
 impl<'a> From<&'a RotatableObject> for RotatedPos {
     fn from(sp: &'a RotatableObject) -> Self {
         RotatedPos {
             pos: sp.obj.position,
-            rotation: sp.rotation
+            rotation: (((sp.rotation + TAU) % TAU) * 256. / TAU) as u8
         }
     }
 }

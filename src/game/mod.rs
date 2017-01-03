@@ -1,5 +1,7 @@
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use std::net::UdpSocket;
+use std::thread;
 
 use korome::{Game, Texture, FrameInfo, Drawer, GameUpdate, Graphics};
 use simple_vector2d::Vector2;
@@ -37,10 +39,10 @@ impl TextureBase {
 
 pub struct SpaceShooter {
     texture_base: TextureBase,
-    planets: Vec<Vect>,
-    players: Vec<phys::RotatedPos>,
-    lasers: Vec<phys::RotatedPos>,
-    socket: UdpSocket
+    planets: Arc<Mutex<Vec<Vect>>>,
+    players: Arc<Mutex<Vec<phys::RotatedPos>>>,
+    lasers: Arc<Mutex<Vec<phys::RotatedPos>>>,
+    socket: Arc<UdpSocket>,
 }
 
 impl SpaceShooter {
@@ -63,9 +65,37 @@ impl SpaceShooter {
                 if let Ok(addr) = s.local_addr() {
                     println!("Bound to {}", addr);
                 }
-                s
+                Arc::new(s)
             }
         }
+    }
+    // YORO
+    pub fn start_network_thread(&self) {
+        let socket = self.socket.clone();
+        let planets_m = self.planets.clone();
+        let players_m = self.players.clone();
+        let lasers_m = self.lasers.clone();
+        thread::spawn(move || {
+            loop {
+                let mut buf = [0u8; 1024];
+                match socket.recv(&mut buf) {
+                    Ok(size) => {
+                        match decode(&buf[..size]).unwrap() {
+                            ServerPacket::Update{planets, players, lasers} => {
+                                *planets_m.lock().unwrap() = planets;
+                                *players_m.lock().unwrap() = players;
+                                * lasers_m.lock().unwrap() = lasers;
+                            }
+                            ServerPacket::DisconnectAck => break
+                        }
+                    },
+                    Err(_) => {
+                        send_packet(&socket, ClientPacket::Error);
+                    }
+                }
+            }
+            println!("Network thread successfully stopped");
+        });
     }
 }
 
@@ -77,11 +107,9 @@ impl Drop for SpaceShooter {
 
 use self::serv::{ClientPacket, ServerPacket};
 
-impl SpaceShooter {
-    fn send_packet(&self, packet: ClientPacket) {
-        encode(&packet, SizeLimit::Infinite)
-            .map(|d| self.socket.send(&d).unwrap()).unwrap();
-    }
+fn send_packet(socket: &UdpSocket, packet: ClientPacket) {
+    encode(&packet, SizeLimit::Infinite)
+        .map(|d| socket.send(&d).unwrap()).unwrap();
 }
 
 impl Game for SpaceShooter {
@@ -92,7 +120,7 @@ impl Game for SpaceShooter {
                 return GameUpdate::Close
             },
             false, Space => {
-                self.send_packet(ClientPacket::Shoot)
+                send_packet(&self.socket, ClientPacket::Shoot)
             }
         }
         let mut impulse = 0.;
@@ -112,10 +140,10 @@ impl Game for SpaceShooter {
             }
         }
         if impulse != 0. {
-            self.send_packet(ClientPacket::PlayerImpulse(impulse * 400. * info.delta))
+            send_packet(&self.socket, ClientPacket::PlayerImpulse(impulse * 400. * info.delta))
         }
         if rotation != 0. {
-            self.send_packet(ClientPacket::PlayerRotate(rotation * 2. * info.delta))
+            send_packet(&self.socket, ClientPacket::PlayerRotate(rotation * 2. * info.delta))
         }
 
         let planet_tex = self.texture_base.get_tex("planet");
@@ -124,34 +152,23 @@ impl Game for SpaceShooter {
 
         drawer.clear(0., 0., 0.);
 
-        let mut buf = [0u8; 1024];
-        let size = self.socket.recv(&mut buf).unwrap();
-
-        match decode(&buf[..size]).unwrap() {
-            ServerPacket::Update{planets, players, lasers} => {
-                self.planets = planets;
-                self.players = players;
-                self.lasers = lasers;
-            }
-        }
-
-        for &planet in &self.planets {
+        for &planet in self.planets.lock().unwrap().iter() {
             planet_tex.drawer()
             .pos(planet.into())
             .draw(drawer);
         }
 
-        for &player in &self.players {
+        for &player in self.players.lock().unwrap().iter() {
             player_tex.drawer()
             .pos(player.pos.into())
-            .rotation(player.rotation)
+            .rotation(player.rotation as f32 / 256. * phys::TAU)
             .draw(drawer);
         }
 
-        for &laser in &self.lasers {
+        for &laser in self.lasers.lock().unwrap().iter() {
             laser_tex.drawer()
             .pos(laser.pos.into())
-            .rotation(laser.rotation)
+            .rotation(laser.rotation as f32 / 256. * phys::TAU)
             .draw(drawer);
         }
 
