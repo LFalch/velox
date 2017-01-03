@@ -1,41 +1,17 @@
-use simple_vector2d::Vector2;
-use bincode::rustc_serialize::{encode, decode};
-use bincode::SizeLimit;
-
 use std::net::{UdpSocket, Ipv4Addr, SocketAddr};
 use std::time::{Instant, Duration};
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use std::thread;
 
-use super::phys::{RotatableObject, RotatedPos, BasicObject};
-use super::Vect;
+use space_shooter::net::*;
+use space_shooter::obj::{Vector2, RotatableObject, RotatedPos, BasicObject, stay_in_bounds};
 
 pub struct Server {
     planets: Vec<BasicObject>,
     server_socket: Arc<UdpSocket>,
     players: Arc<Mutex<HashMap<SocketAddr, RotatableObject>>>,
     lasers: Arc<Mutex<Vec<RotatableObject>>>
-}
-
-#[derive(RustcEncodable, RustcDecodable)]
-pub enum ClientPacket {
-    Connect,
-    PlayerImpulse(f32),
-    PlayerRotate(f32),
-    Shoot,
-    Disconnect,
-    Error
-}
-
-#[derive(RustcEncodable, RustcDecodable)]
-pub enum ServerPacket {
-    Update{
-        players: Vec<RotatedPos>,
-        lasers: Vec<RotatedPos>,
-        planets: Vec<Vect>
-    },
-    DisconnectAck
 }
 
 impl Server {
@@ -139,41 +115,22 @@ impl Server {
             let now = Instant::now();
             let dur = now-last_time;
             last_time = now;
-            self.update(dur.as_secs() as f32+ 1e-9 * dur.subsec_nanos() as f32);
+            self.update(dur.as_secs() as f32 + 1e-9 * dur.subsec_nanos() as f32);
             let planets: Vec<_> = self.planets.iter().map(|bo| bo.position).collect();
             let players: Vec<_> = self.players.lock().unwrap().values()
                                               .map(RotatedPos::from).collect();
             let lasers: Vec<_> = self.lasers.lock().unwrap().iter()
                                              .map(RotatedPos::from).collect();
-            let data = encode(&ServerPacket::Update{
+            let data = encode(&ServerPacket::Update(ObjectsUpdate {
                 planets: planets,
                 players: players,
                 lasers: lasers
-            }, SizeLimit::Infinite).unwrap();
+            }), SizeLimit::Infinite).unwrap();
             for addr in self.players.lock().unwrap().keys() {
                 self.server_socket.send_to(&data, addr).unwrap();
             }
             thread::sleep(Duration::from_millis(18));
         }
         // listener.join();
-    }
-}
-
-const W: f32 = 1200./2.;
-const H: f32 =  900./2.;
-
-/// Wraps `p` if out of bounds
-fn stay_in_bounds(p: &mut Vect) {
-    if p.0 < -W {
-        p.0 += 2. * W;
-    }
-    if p.0 > W {
-        p.0 -= 2. * W;
-    }
-    if p.1 < -H {
-        p.1 += 2. * H;
-    }
-    if p.1 > H {
-        p.1 -= 2. * H;
     }
 }

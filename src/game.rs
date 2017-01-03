@@ -4,14 +4,9 @@ use std::net::UdpSocket;
 use std::thread;
 
 use korome::{Game, Texture, FrameInfo, Drawer, GameUpdate, Graphics};
-use simple_vector2d::Vector2;
-use bincode::rustc_serialize::{encode, decode};
-use bincode::SizeLimit;
 
-pub type Vect = Vector2<f32>;
-
-mod phys;
-pub mod serv;
+use space_shooter::obj::TAU;
+use space_shooter::net::*;
 
 #[derive(Default)]
 struct TextureBase(HashMap<String, Texture>);
@@ -39,9 +34,7 @@ impl TextureBase {
 
 pub struct SpaceShooter {
     texture_base: TextureBase,
-    planets: Arc<Mutex<Vec<Vect>>>,
-    players: Arc<Mutex<Vec<phys::RotatedPos>>>,
-    lasers: Arc<Mutex<Vec<phys::RotatedPos>>>,
+    last_update: Arc<Mutex<ObjectsUpdate>>,
     socket: Arc<UdpSocket>,
 }
 
@@ -55,9 +48,7 @@ impl SpaceShooter {
                 tb.load(graphics, "laser");
                 tb
             },
-            planets: Default::default(),
-            players: Default::default(),
-            lasers: Default::default(),
+            last_update: Arc::default(),
             socket: {
                 let s = UdpSocket::bind(("0.0.0.0:0")).unwrap();
                 s.connect(server).unwrap();
@@ -72,20 +63,14 @@ impl SpaceShooter {
     // YORO
     pub fn start_network_thread(&self) {
         let socket = self.socket.clone();
-        let planets_m = self.planets.clone();
-        let players_m = self.players.clone();
-        let lasers_m = self.lasers.clone();
+        let update = self.last_update.clone();
         thread::spawn(move || {
             loop {
                 let mut buf = [0u8; 1024];
                 match socket.recv(&mut buf) {
                     Ok(size) => {
                         match decode(&buf[..size]).unwrap() {
-                            ServerPacket::Update{planets, players, lasers} => {
-                                *planets_m.lock().unwrap() = planets;
-                                *players_m.lock().unwrap() = players;
-                                * lasers_m.lock().unwrap() = lasers;
-                            }
+                            ServerPacket::Update(u) => *update.lock().unwrap() = u,
                             ServerPacket::DisconnectAck => break
                         }
                     },
@@ -104,8 +89,6 @@ impl Drop for SpaceShooter {
         self.socket.send(&encode(&ClientPacket::Disconnect, SizeLimit::Infinite).unwrap()).unwrap();
     }
 }
-
-use self::serv::{ClientPacket, ServerPacket};
 
 fn send_packet(socket: &UdpSocket, packet: ClientPacket) {
     encode(&packet, SizeLimit::Infinite)
@@ -152,23 +135,25 @@ impl Game for SpaceShooter {
 
         drawer.clear(0., 0., 0.);
 
-        for &planet in self.planets.lock().unwrap().iter() {
+        let ObjectsUpdate{ref planets, ref players, ref lasers} = *self.last_update.lock().unwrap();
+
+        for &planet in planets.iter() {
             planet_tex.drawer()
             .pos(planet.into())
             .draw(drawer);
         }
 
-        for &player in self.players.lock().unwrap().iter() {
+        for &player in players.iter() {
             player_tex.drawer()
             .pos(player.pos.into())
-            .rotation(player.rotation as f32 / 256. * phys::TAU)
+            .rotation(player.rotation as f32 / 256. * TAU)
             .draw(drawer);
         }
 
-        for &laser in self.lasers.lock().unwrap().iter() {
+        for &laser in lasers.iter() {
             laser_tex.drawer()
             .pos(laser.pos.into())
-            .rotation(laser.rotation as f32 / 256. * phys::TAU)
+            .rotation(laser.rotation as f32 / 256. * TAU)
             .draw(drawer);
         }
 

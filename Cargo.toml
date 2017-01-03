@@ -14,3 +14,6 @@ version = "0.14"
 version = "0.6"
 default-features = false
 features = ["rustc-serialize"]
+
+[features]
+server-only = []
