@@ -51,6 +51,7 @@ impl SpaceShooter {
 }
 
 impl Game for SpaceShooter {
+    type ReturnType = GameUpdate;
     fn frame(&mut self, info: &FrameInfo, drawer: &mut Drawer) -> GameUpdate {
         when!{info;
             false, Escape => {
