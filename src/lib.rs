@@ -32,9 +32,12 @@ use game::SpaceShooter;
 
 pub use game::serv::Server;
 
+use std::env::args;
+
 pub fn main() {
     let graphics = Graphics::new("Space Shooter WIP", 1200, 900).unwrap();
-    let this = SpaceShooter::new(&graphics);
+    let server = args().nth(1).unwrap_or_else(|| "127.0.0.1:7351".to_owned());
+    let this = SpaceShooter::new(&graphics, &server);
 
     run_until_closed(graphics, this);
 }

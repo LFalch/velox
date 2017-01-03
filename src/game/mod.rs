@@ -11,8 +11,6 @@ pub type Vect = Vector2<f32>;
 mod phys;
 pub mod serv;
 
-use self::phys::BasicObject;
-
 #[derive(Default)]
 struct TextureBase(HashMap<String, Texture>);
 
@@ -39,14 +37,13 @@ impl TextureBase {
 
 pub struct SpaceShooter {
     texture_base: TextureBase,
-    new_planet: Option<Vect>,
-    player: BasicObject,
-    socket: UdpSocket,
-    synced: bool
+    planets: Vec<Vect>,
+    players: Vec<phys::ClientPlayer>,
+    socket: UdpSocket
 }
 
 impl SpaceShooter {
-    pub fn new(graphics: &Graphics) -> Self {
+    pub fn new(graphics: &Graphics, server: &str) -> Self {
         SpaceShooter {
             texture_base: {
                 let mut tb = TextureBase::default();
@@ -54,17 +51,28 @@ impl SpaceShooter {
                 tb.load(graphics, "ship");
                 tb
             },
-            synced: false,
-            new_planet: Default::default(),
-            player: Default::default(),
+            planets: Default::default(),
+            players: Default::default(),
             socket: {
-                let s = UdpSocket::bind(("127.0.0.1:0")).unwrap();
-                s.connect("127.0.0.1:7351").unwrap();
+                let s = UdpSocket::bind(("0.0.0.0:0")).unwrap();
+                s.connect(server).unwrap();
+                s.send(&encode(&ClientPacket::Connect, SizeLimit::Infinite).unwrap()).unwrap();
+                if let Ok(addr) = s.local_addr() {
+                    println!("Bound to {}", addr);
+                }
                 s
             }
         }
     }
 }
+
+impl Drop for SpaceShooter {
+    fn drop(&mut self) {
+        self.socket.send(&encode(&ClientPacket::Disconnect, SizeLimit::Infinite).unwrap()).unwrap();
+    }
+}
+
+use self::serv::{ClientPacket, ServerPacket};
 
 impl Game for SpaceShooter {
     fn frame(&mut self, info: &FrameInfo, drawer: &mut Drawer) -> GameUpdate {
@@ -73,50 +81,58 @@ impl Game for SpaceShooter {
                 return GameUpdate::Close
             }
         }
-        when_mouse!{info;
-            true, Left => {
-                if self.new_planet.is_none(){
-                    self.new_planet = Some(info.mousepos.into());
-                }
+        let mut impulse = 0.;
+        let mut rotation = 0.;
+        is_down! {info;
+            W, Up => {
+                impulse += 1.;
             },
-            false, Left => {
-                if let Some(pos) = self.new_planet{
-                    let new = encode(&BasicObject::new(pos, pos-info.mousepos.into()), SizeLimit::Infinite).unwrap();
-                    self.socket.send(&new).unwrap();
-                    self.synced = true;
-                    self.new_planet = None;
-                }
+            S, Down => {
+                impulse -= 1.;
+            },
+            D, Right => {
+                rotation -= 1.;
+            },
+            A, Left => {
+                rotation += 1.;
             }
+        }
+        if impulse != 0. {
+            encode(&ClientPacket::PlayerImpulse(impulse * 400. * info.delta), SizeLimit::Infinite)
+                .map(|d| self.socket.send(&d).unwrap()).unwrap();
+        }
+        if rotation != 0. {
+            encode(&ClientPacket::PlayerRotate(rotation * 2. * info.delta), SizeLimit::Infinite)
+                .map(|d| self.socket.send(&d).unwrap()).unwrap();
         }
 
         let planet_tex = self.texture_base.get_tex("planet");
+        let player_tex = self.texture_base.get_tex("ship");
 
         drawer.clear(0., 0., 0.);
 
-        if self.synced {
-            let mut buf = [0u8; 1024];
-            let size = self.socket.recv(&mut buf).unwrap();
+        let mut buf = [0u8; 1024];
+        let size = self.socket.recv(&mut buf).unwrap();
 
-            let planets: Vec<BasicObject> = decode(&buf[..size]).unwrap();
-            for planet in planets.iter() {
-                planet_tex.drawer()
-                .pos(planet.position.into())
-                .draw(drawer);
+        match decode(&buf[..size]).unwrap() {
+            ServerPacket::Update{planets, players} => {
+                self.planets = planets;
+                self.players = players;
             }
         }
 
-        if let Some(p) = self.new_planet {
+        for &planet in &self.planets {
             planet_tex.drawer()
-                .pos(p.into())
-                .colour([0.5; 4])
-                .draw(drawer);
+            .pos(planet.into())
+            .draw(drawer);
         }
 
-        self.texture_base
-            .get_tex("ship")
-            .drawer()
-            .pos(self.player.position.into())
+        for &player in &self.players {
+            player_tex.drawer()
+            .pos(player.pos.into())
+            .rotation(player.rotation)
             .draw(drawer);
+        }
 
         GameUpdate::Nothing
     }
