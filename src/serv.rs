@@ -30,15 +30,15 @@ impl Server {
         }
     }
     pub fn update(&mut self, delta: f32) {
-        let others: Vec<_> = self.planets.iter().cloned().collect();
+        let other_poses: Vec<_> = self.planets.iter().map(|o| o.position).collect();
 
         for (i, planet) in self.planets.iter_mut().enumerate() {
             planet.position += planet.velocity * delta;
 
             stay_in_bounds(&mut planet.position);
 
-            for (j, &other) in others.iter().enumerate() {
-                let dist = planet.position - other.position;
+            for (j, &other_pos) in other_poses.iter().enumerate() {
+                let dist = planet.position - other_pos;
                 let half_dist = dist.length() / 2.;
 
                 if i != j && half_dist < 32. {
