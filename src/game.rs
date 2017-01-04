@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::net::UdpSocket;
 use std::thread;
 use std::fs;
 
@@ -42,7 +41,7 @@ impl TextureBase {
 pub struct SpaceShooter {
     texture_base: TextureBase,
     last_update: Arc<Mutex<ObjectsUpdate>>,
-    socket: Arc<UdpSocket>,
+    socket: Arc<ClientSocket>,
 }
 
 impl SpaceShooter {
@@ -50,15 +49,7 @@ impl SpaceShooter {
         SpaceShooter {
             texture_base: TextureBase::new(graphics),
             last_update: Arc::default(),
-            socket: {
-                let s = UdpSocket::bind(("0.0.0.0:0")).unwrap();
-                s.connect(server).unwrap();
-                s.send(&encode(&ClientPacket::Connect, SizeLimit::Infinite).unwrap()).unwrap();
-                if let Ok(addr) = s.local_addr() {
-                    println!("Bound to {}", addr);
-                }
-                Arc::new(s)
-            }
+            socket: Arc::new(ClientSocket::new(server))
         }
     }
     // YORO
@@ -67,16 +58,11 @@ impl SpaceShooter {
         let update = self.last_update.clone();
         thread::spawn(move || {
             loop {
-                let mut buf = [0u8; 1024];
-                match socket.recv(&mut buf) {
-                    Ok(size) => {
-                        match decode(&buf[..size]).unwrap() {
-                            ServerPacket::Update(u) => *update.lock().unwrap() = u,
-                            ServerPacket::DisconnectAck => break
-                        }
-                    },
+                match socket.recv() {
+                    Ok(ServerPacket::Update(u)) => *update.lock().unwrap() = u,
+                    Ok(ServerPacket::DisconnectAck) => break,
                     Err(_) => {
-                        send_packet(&socket, ClientPacket::Error);
+                        socket.send(ClientPacket::Error).unwrap();
                     }
                 }
             }
@@ -87,13 +73,8 @@ impl SpaceShooter {
 
 impl Drop for SpaceShooter {
     fn drop(&mut self) {
-        self.socket.send(&encode(&ClientPacket::Disconnect, SizeLimit::Infinite).unwrap()).unwrap();
+        self.socket.send(ClientPacket::Disconnect).unwrap();
     }
-}
-
-fn send_packet(socket: &UdpSocket, packet: ClientPacket) {
-    encode(&packet, SizeLimit::Infinite)
-        .map(|d| socket.send(&d).unwrap()).unwrap();
 }
 
 impl Game for SpaceShooter {
@@ -104,7 +85,7 @@ impl Game for SpaceShooter {
                 return GameUpdate::Close
             },
             false, Space => {
-                send_packet(&self.socket, ClientPacket::Shoot)
+                self.socket.send(ClientPacket::Shoot).unwrap();
             }
         }
         let mut impulse = 0.;
@@ -124,10 +105,10 @@ impl Game for SpaceShooter {
             }
         }
         if impulse != 0. {
-            send_packet(&self.socket, ClientPacket::PlayerImpulse(impulse * 400. * info.delta))
+            self.socket.send(ClientPacket::PlayerImpulse(impulse * 400. * info.delta)).unwrap();
         }
         if rotation != 0. {
-            send_packet(&self.socket, ClientPacket::PlayerRotate(rotation * 2. * info.delta))
+            self.socket.send(ClientPacket::PlayerRotate(rotation * 2. * info.delta)).unwrap();
         }
 
         let planet_tex = self.texture_base.get_tex("planet");
