@@ -122,10 +122,22 @@ impl Server {
         });
 
         let mut last_time = Instant::now();
+        let mut aggregate_time = Duration::new(0, 0);
+        let spawn_time = Duration::from_secs(10);
+
         loop {
             let now = Instant::now();
             let dur = now-last_time;
             last_time = now;
+
+            if self.planets.len() < 5 {
+                aggregate_time += dur;
+                if aggregate_time >= spawn_time {
+                    aggregate_time = Duration::new(0, 0);
+                    self.planets.push(::rand::random());
+                }
+            }
+
             self.update(dur.as_secs() as f32 + 1e-9 * dur.subsec_nanos() as f32);
             let planets: Vec<_> = self.planets.iter().map(|bo| bo.obj.position).collect();
             let players: Vec<_> = self.players.lock().unwrap().values()

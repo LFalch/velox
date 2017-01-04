@@ -77,6 +77,15 @@ impl Planet {
     }
 }
 
+use rand::{Rand, Rng};
+
+impl Rand for Planet {
+    fn rand<R: Rng>(rng: &mut R) -> Self {
+        let v = (rng.gen_range(-100., 100.), rng.gen_range(-100., 100.));
+        Planet::new(rng.gen_range(-W, W), rng.gen_range(-H, H), v.0, v.1)
+    }
+}
+
 impl<'a> From<&'a Player> for RotatedPos {
     fn from(p: &'a Player) -> Self {
         From::from(&p.obj)

@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate korome;
 extern crate space_shooter;
+extern crate rand;
 
 macro_rules! when{
     ($info:expr; $($state:expr, $key:ident => $b:block),+) => {
