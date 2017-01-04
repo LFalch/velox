@@ -22,7 +22,7 @@ pub const TAU: f32 = 2. * PI;
 impl<'a> From<&'a RotatableObject> for RotatedPos {
     fn from(sp: &'a RotatableObject) -> Self {
         RotatedPos {
-            pos: sp.obj.position,
+            pos: sp.position,
             rotation: (sp.rotation * 256. / TAU) as u8
         }
     }
@@ -31,7 +31,8 @@ impl<'a> From<&'a RotatableObject> for RotatedPos {
 #[derive(Default, Debug, Copy, Clone)]
 #[derive(RustcEncodable, RustcDecodable)]
 pub struct RotatableObject {
-    pub obj: BasicObject,
+    pub position: Vect,
+    pub velocity: Vect,
     pub rotation: f32
 }
 
@@ -41,6 +42,44 @@ impl BasicObject {
             position: Vector2(x, y),
             velocity: Vector2(vx, vy),
         }
+    }
+}
+
+#[derive(Default, Debug, Copy, Clone)]
+#[derive(RustcEncodable, RustcDecodable)]
+pub struct Planet {
+    pub obj: BasicObject,
+    pub health: u8
+}
+
+#[derive(Debug, Copy, Clone)]
+#[derive(RustcEncodable, RustcDecodable)]
+pub struct Player{
+    pub obj: RotatableObject,
+    pub health: u8
+}
+
+impl Default for Player {
+    fn default() -> Self {
+        Player {
+            obj: Default::default(),
+            health: 5
+        }
+    }
+}
+
+impl Planet {
+    pub fn new(x: f32, y: f32, vx: f32, vy: f32) -> Self {
+        Planet {
+            obj: BasicObject::new(x, y, vx, vy),
+            health: 5
+        }
+    }
+}
+
+impl<'a> From<&'a Player> for RotatedPos {
+    fn from(p: &'a Player) -> Self {
+        From::from(&p.obj)
     }
 }
 

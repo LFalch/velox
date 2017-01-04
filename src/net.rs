@@ -66,7 +66,6 @@ impl ServerSocket {
             Ok((size, remote)) => decode(&buf[..size]).ok().map(|p| (remote, p)),
             Err(_) => None,
         };
-        println!("Received {:?}", ret);
         ret
     }
     pub fn send_all<'a, I: 'a>(&self, packet: ServerPacket, addrs: I) -> Result<(), Error>
