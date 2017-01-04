@@ -1,4 +1,4 @@
-use std::net::{UdpSocket, Ipv4Addr, SocketAddr};
+use std::net::{Ipv4Addr, SocketAddr};
 use std::time::{Instant, Duration};
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
@@ -9,7 +9,7 @@ use space_shooter::obj::{Vector2, RotatableObject, RotatedPos, BasicObject, TAU,
 
 pub struct Server {
     planets: Vec<BasicObject>,
-    server_socket: Arc<UdpSocket>,
+    server_socket: Arc<ServerSocket>,
     players: Arc<Mutex<HashMap<SocketAddr, RotatableObject>>>,
     lasers: Arc<Mutex<Vec<RotatableObject>>>
 }
@@ -26,7 +26,7 @@ impl Server {
             ],
             lasers: Arc::default(),
             players: Arc::default(),
-            server_socket: Arc::new(UdpSocket::bind((Ipv4Addr::new(0, 0, 0, 0), 7351)).unwrap()),
+            server_socket: Arc::new(ServerSocket::new((Ipv4Addr::new(0, 0, 0, 0), 7351))),
         }
     }
     pub fn update(&mut self, delta: f32) {
@@ -62,22 +62,7 @@ impl Server {
 
         let _listener = thread::spawn(move || {
             loop {
-                let mut buf = [0u8; 20];
-                let (size, remote) = match listener_server_socket.recv_from(&mut buf) {
-                    Ok(r) => r,
-                    Err(e) => {
-                        println!("Error receiving packet! {:?}", e);
-                        continue
-                    }
-                };
-
-                let packet: ClientPacket = match decode(&buf[..size]) {
-                    Ok(p) => p,
-                    Err(e) => {
-                        println!("Decoding error {:?}", e);
-                        continue
-                    }
-                };
+                let (remote, packet) = listener_server_socket.recv().unwrap();
                 let mut players = listener_players.lock().unwrap();
                 match packet {
                     ClientPacket::Connect => {
@@ -103,8 +88,7 @@ impl Server {
                     }
                     ClientPacket::Disconnect => {
                         players.remove(&remote);
-                        let data = encode(&ServerPacket::DisconnectAck, SizeLimit::Infinite).unwrap();
-                        listener_server_socket.send_to(&data, &remote).unwrap();
+                        listener_server_socket.send(ServerPacket::DisconnectAck, &remote).unwrap();
                     }
                 }
             }
@@ -121,14 +105,11 @@ impl Server {
                                               .map(RotatedPos::from).collect();
             let lasers: Vec<_> = self.lasers.lock().unwrap().iter()
                                              .map(RotatedPos::from).collect();
-            let data = encode(&ServerPacket::Update(ObjectsUpdate {
+            self.server_socket.send_all(ServerPacket::Update(ObjectsUpdate {
                 planets: planets,
                 players: players,
                 lasers: lasers
-            }), SizeLimit::Infinite).unwrap();
-            for addr in self.players.lock().unwrap().keys() {
-                self.server_socket.send_to(&data, addr).unwrap();
-            }
+            }), self.players.lock().unwrap().keys()).unwrap();
             thread::sleep(Duration::from_millis(18));
         }
         // listener.join();
