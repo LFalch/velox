@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::net::UdpSocket;
 use std::thread;
+use std::fs;
 
 use korome::{Game, Texture, FrameInfo, Drawer, GameUpdate, Graphics};
 
@@ -11,17 +12,23 @@ use space_shooter::net::*;
 #[derive(Default)]
 struct TextureBase(HashMap<String, Texture>);
 
-fn create_texture(graphics: &Graphics, name: &str) -> Texture {
-    match Texture::from_file(graphics, format!("tex/{}.png", name)) {
-        Ok(t) => t,
-        Err(_) => panic!("Failed to load texture {}", name),
-    }
-}
+const TEXTURE_FOLDER: &'static str = "tex";
 
 impl TextureBase {
-    fn load<S: ToString>(&mut self, graphics: &Graphics, name: S) {
-        let s = name.to_string();
-        self.0.insert(name.to_string(), create_texture(graphics, &s));
+    fn new(graphics: &Graphics) -> Self {
+        let mut hm = HashMap::new();
+
+        for file in fs::read_dir(TEXTURE_FOLDER).expect("read texture folder").filter_map(Result::ok) {
+            if file.path().extension().map(|x| x == "png").unwrap_or(false) {
+                let file_name = file.file_name();
+                let name = file_name.to_str().unwrap()[..file_name.len()-4].to_owned();
+                let t = Texture::from_file(graphics, file.path()).unwrap();
+
+                hm.insert(name, t);
+            }
+        }
+
+        TextureBase(hm)
     }
     fn get_tex(&self, name: &str) -> &Texture {
         if let Some(t) = self.0.get(name) {
@@ -41,13 +48,7 @@ pub struct SpaceShooter {
 impl SpaceShooter {
     pub fn new(graphics: &Graphics, server: &str) -> Self {
         SpaceShooter {
-            texture_base: {
-                let mut tb = TextureBase::default();
-                tb.load(graphics, "planet");
-                tb.load(graphics, "ship");
-                tb.load(graphics, "laser");
-                tb
-            },
+            texture_base: TextureBase::new(graphics),
             last_update: Arc::default(),
             socket: {
                 let s = UdpSocket::bind(("0.0.0.0:0")).unwrap();
