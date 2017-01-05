@@ -1,4 +1,4 @@
-use super::obj::{Vect, RotatedPos};
+use super::obj::{BasicObject, RotatableObject};
 
 use std::net::{UdpSocket, ToSocketAddrs, SocketAddr};
 use std::io::Error;
@@ -13,19 +13,24 @@ pub enum ClientPacket {
     PlayerRotate(f32),
     Shoot,
     Disconnect,
-    Error
 }
 
 #[derive(Default, RustcEncodable, RustcDecodable, Debug)]
-pub struct ObjectsUpdate {
-    pub players: Vec<RotatedPos>,
-    pub lasers: Vec<RotatedPos>,
-    pub planets: Vec<Vect>
+pub struct AllObjects {
+    pub players: Vec<RotatableObject>,
+    pub lasers: Vec<RotatableObject>,
+    pub planets: Vec<BasicObject>
 }
 
 #[derive(RustcEncodable, RustcDecodable, Debug)]
 pub enum ServerPacket {
-    Update(ObjectsUpdate),
+    All(AllObjects),
+    UpdatePlayer(usize, RotatableObject),
+    UpdateLaser(usize, RotatableObject),
+    UpdatePlanet(usize, BasicObject),
+    DeletePlayers(Vec<usize>),
+    DeleteLasers(Vec<usize>),
+    DeletePlanets(Vec<usize>),
     DisconnectAck
 }
 

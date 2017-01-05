@@ -5,7 +5,7 @@ use std::fs;
 
 use korome::{Game, Texture, FrameInfo, Drawer, GameUpdate, Graphics};
 
-use velox::obj::TAU;
+use velox::obj::{BasicObject, RotatableObject, stay_in_bounds};
 use velox::net::*;
 
 #[derive(Default)]
@@ -40,30 +40,82 @@ impl TextureBase {
 
 pub struct SpaceShooter {
     texture_base: TextureBase,
-    last_update: Arc<Mutex<ObjectsUpdate>>,
     socket: Arc<ClientSocket>,
+    planets: Arc<Mutex<Vec<BasicObject>>>,
+    players: Arc<Mutex<Vec<RotatableObject>>>,
+    lasers: Arc<Mutex<Vec<RotatableObject>>>,
 }
 
 impl SpaceShooter {
     pub fn new(graphics: &Graphics, server: &str) -> Self {
         SpaceShooter {
             texture_base: TextureBase::new(graphics),
-            last_update: Arc::default(),
+            planets: Arc::default(),
+            players: Arc::default(),
+            lasers: Arc::default(),
             socket: Arc::new(ClientSocket::new(server))
         }
     }
     // YORO
     pub fn start_network_thread(&self) {
         let socket = self.socket.clone();
-        let update = self.last_update.clone();
+        let lasers_m = self.lasers.clone();
+        let planets_m = self.planets.clone();
+        let players_m = self.players.clone();
         thread::spawn(move || {
             loop {
-                match socket.recv() {
-                    Ok(ServerPacket::Update(u)) => *update.lock().unwrap() = u,
-                    Ok(ServerPacket::DisconnectAck) => break,
-                    Err(_) => {
-                        socket.send(ClientPacket::Error).unwrap();
+                let p = socket.recv();
+                match p {
+                    Ok(ServerPacket::All(AllObjects {
+                        players,
+                        lasers,
+                        planets
+                    })) => {
+                        *planets_m.lock().unwrap() = planets;
+                        *players_m.lock().unwrap() = players;
+                        *lasers_m.lock().unwrap() = lasers;
+                    },
+                    Ok(ServerPacket::UpdateLaser(i, l)) => {
+                        let mut lasers = lasers_m.lock().unwrap();
+                        if let Some(laser) = lasers.get_mut(i) {
+                            *laser = l;
+                            continue
+                        }
+                        lasers.push(l);
                     }
+                    Ok(ServerPacket::UpdatePlanet(i, p)) => {
+                        let mut planets = planets_m.lock().unwrap();
+                        if let Some(planet) = planets.get_mut(i) {
+                            *planet = p;
+                            continue
+                        }
+                        planets.push(p);
+                    }
+                    Ok(ServerPacket::UpdatePlayer(i, p)) => {
+                        let mut players = players_m.lock().unwrap();
+                        if let Some(player) = players.get_mut(i) {
+                            *player = p;
+                            continue
+                        }
+                        players.push(p);
+                    }
+                    Ok(ServerPacket::DeletePlayers(ps)) => {
+                        for i in ps.into_iter().rev() {
+                            players_m.lock().unwrap().remove(i);
+                        }
+                    }
+                    Ok(ServerPacket::DeletePlanets(ps)) => {
+                        for i in ps.into_iter().rev() {
+                            planets_m.lock().unwrap().remove(i);
+                        }
+                    }
+                    Ok(ServerPacket::DeleteLasers(ls)) => {
+                        for i in ls.into_iter().rev() {
+                            lasers_m.lock().unwrap().remove(i);
+                        }
+                    }
+                    Ok(ServerPacket::DisconnectAck) => break,
+                    Err(e) => println!("Error! {:?}", e),
                 }
             }
             println!("Network thread successfully stopped");
@@ -117,25 +169,32 @@ impl Game for SpaceShooter {
 
         drawer.clear(0., 0., 0.);
 
-        let ObjectsUpdate{ref planets, ref players, ref lasers} = *self.last_update.lock().unwrap();
+        for planet in self.planets.lock().unwrap().iter_mut() {
+            planet.position += planet.velocity * info.delta;
+            stay_in_bounds(&mut planet.position);
 
-        for &planet in planets.iter() {
             planet_tex.drawer()
-            .pos(planet.into())
+            .pos(planet.position.into())
             .draw(drawer);
         }
 
-        for &player in players.iter() {
+        for player in self.players.lock().unwrap().iter_mut() {
+            player.position += player.velocity * info.delta;
+            stay_in_bounds(&mut player.position);
+
             player_tex.drawer()
-            .pos(player.pos.into())
-            .rotation(player.rotation as f32 / 256. * TAU)
+            .pos(player.position.into())
+            .rotation(player.rotation)
             .draw(drawer);
         }
 
-        for &laser in lasers.iter() {
+        for laser in self.lasers.lock().unwrap().iter_mut() {
+            laser.position += laser.velocity * info.delta;
+            stay_in_bounds(&mut laser.position);
+
             laser_tex.drawer()
-            .pos(laser.pos.into())
-            .rotation(laser.rotation as f32 / 256. * TAU)
+            .pos(laser.position.into())
+            .rotation(laser.rotation)
             .draw(drawer);
         }
 
