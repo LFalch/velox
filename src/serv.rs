@@ -100,11 +100,13 @@ impl Server {
                         players.get_mut(&remote).map(|b| b.obj.rotation = (b.obj.rotation + r + TAU) % TAU);
                     }
                     ClientPacket::Shoot => {
-                        let mut laser = players[&remote].obj;
-                        let dir = Vector2::unit_vector(laser.rotation);
-                        laser.velocity += 400. * dir;
-                        laser.position += 42. * dir;
-                        listener_lasers.lock().unwrap().push((true, laser));
+                        if let Some(player) = players.get(&remote) {
+                            let mut laser = player.obj;
+                            let dir = Vector2::unit_vector(laser.rotation);
+                            laser.velocity += 400. * dir;
+                            laser.position += 42. * dir;
+                            listener_lasers.lock().unwrap().push((true, laser));
+                        }
                     }
                     ClientPacket::Error => {
                         let mut lasers = listener_lasers.lock().unwrap();
