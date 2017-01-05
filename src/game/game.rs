@@ -5,8 +5,8 @@ use std::fs;
 
 use korome::{Game, Texture, FrameInfo, Drawer, GameUpdate, Graphics};
 
-use space_shooter::obj::TAU;
-use space_shooter::net::*;
+use velox::obj::TAU;
+use velox::net::*;
 
 #[derive(Default)]
 struct TextureBase(HashMap<String, Texture>);

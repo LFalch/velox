@@ -1,5 +1,5 @@
 [package]
-name = "space-shooter"
+name = "velox"
 version = "0.1.0-wip"
 authors = ["LFalch <lucas@wasd.dk>"]
 
@@ -16,5 +16,11 @@ version = "0.6"
 default-features = false
 features = ["rustc-serialize"]
 
-[features]
-server-only = []
+[[bin]]
+name = "velox"
+path = "src/game/main.rs"
+doc = false
+
+[[bin]]
+name = "velox-server"
+path = "src/server/main.rs"

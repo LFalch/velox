@@ -4,8 +4,8 @@ use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use std::thread;
 
-use space_shooter::net::*;
-use space_shooter::obj::{Vector2, RotatableObject, RotatedPos, Planet, Player, TAU, stay_in_bounds};
+use velox::net::*;
+use velox::obj::{Vector2, RotatableObject, RotatedPos, Planet, Player, TAU, stay_in_bounds};
 
 pub struct Server {
     planets: Vec<Planet>,
