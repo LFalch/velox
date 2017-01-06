@@ -1,2 +1,5 @@
 target
-deltas.log
+
+# General shell scripts
+*.sh
+*.cmd
