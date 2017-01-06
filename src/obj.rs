@@ -70,17 +70,23 @@ const W: f32 = 1200./2.;
 const H: f32 =  900./2.;
 
 /// Wraps `p` if out of bounds
-pub fn stay_in_bounds(p: &mut Vect) {
+pub fn stay_in_bounds(p: &mut Vect) -> bool {
+    let mut out_of_bounds;
     if p.0 < -W {
         p.0 += 2. * W;
-    }
-    if p.0 > W {
+        out_of_bounds = true;
+    } else if p.0 > W {
         p.0 -= 2. * W;
+        out_of_bounds = true;
+    } else {
+        out_of_bounds = false;
     }
     if p.1 < -H {
         p.1 += 2. * H;
-    }
-    if p.1 > H {
+        out_of_bounds = true;
+    } else if p.1 > H {
         p.1 -= 2. * H;
+        out_of_bounds = true;
     }
+    out_of_bounds
 }

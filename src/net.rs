@@ -3,8 +3,9 @@ use super::obj::{BasicObject, RotatableObject};
 use std::net::{UdpSocket, ToSocketAddrs, SocketAddr};
 use std::io::Error;
 
-pub use bincode::rustc_serialize::{encode, decode};
-pub use bincode::SizeLimit;
+use bincode::rustc_serialize::{encode, decode};
+use bincode::SizeLimit;
+pub use bincode::rustc_serialize::encoded_size;
 
 #[derive(RustcEncodable, RustcDecodable, Debug)]
 pub enum ClientPacket {
@@ -24,7 +25,11 @@ pub struct AllObjects {
 
 #[derive(RustcEncodable, RustcDecodable, Debug)]
 pub enum ServerPacket {
-    All(AllObjects),
+    PlayersAndPlanets {
+        players: Vec<RotatableObject>,
+        planets: Vec<BasicObject>
+    },
+    AllLasers(Vec<RotatableObject>),
     UpdatePlayer(usize, RotatableObject),
     UpdateLaser(usize, RotatableObject),
     UpdatePlanet(usize, BasicObject),
@@ -40,6 +45,9 @@ where E: Into<Box<::std::error::Error + Send + Sync>>{
 }
 
 const BUFFER_SIZE: usize = 1024;
+const BUFFER_SIZE64: u64 = BUFFER_SIZE as u64;
+const BUFFER_SIZE_SRV: usize = 20;
+const BUFFER_SIZE_SRV64: u64 = BUFFER_SIZE_SRV as u64;
 
 pub struct ClientSocket(UdpSocket);
 
@@ -60,7 +68,7 @@ impl ClientSocket {
             .and_then(|size| decode(&buf[..size]).map_err(invalid_data_error))
     }
     pub fn send(&self, packet: ClientPacket) -> Result<usize, Error> {
-        let d = encode(&packet, SizeLimit::Infinite).map_err(invalid_data_error)?;
+        let d = encode(&packet, SizeLimit::Bounded(BUFFER_SIZE_SRV64)).map_err(invalid_data_error)?;
         self.0.send(&d)
     }
 }
@@ -72,7 +80,7 @@ impl ServerSocket {
         ServerSocket(UdpSocket::bind(bind_addr).unwrap())
     }
     pub fn recv(&self) -> Result<(SocketAddr, ClientPacket), Error> {
-        let mut buf = [0u8; 20];
+        let mut buf = [0u8; BUFFER_SIZE_SRV];
         match self.0.recv_from(&mut buf) {
             Ok((size, remote)) => {
                 decode(&buf[..size]).map(|p| (remote, p)).map_err(invalid_data_error)
@@ -82,14 +90,14 @@ impl ServerSocket {
     }
     pub fn send_all<'a, I: 'a>(&self, packet: ServerPacket, addrs: I) -> Result<(), Error>
     where I: IntoIterator<Item=&'a SocketAddr> {
-        let data = encode(&packet, SizeLimit::Infinite).map_err(invalid_data_error)?;
+        let data = encode(&packet, SizeLimit::Bounded(BUFFER_SIZE64)).map_err(invalid_data_error)?;
         for addr in addrs {
             self.0.send_to(&data, addr)?;
         }
         Ok(())
     }
     pub fn send(&self, packet: ServerPacket, addr: &SocketAddr) -> Result<usize, Error> {
-        let data = encode(&packet, SizeLimit::Infinite).map_err(invalid_data_error)?;
+        let data = encode(&packet, SizeLimit::Bounded(BUFFER_SIZE64)).map_err(invalid_data_error)?;
         self.0.send_to(&data, addr)
     }
 }

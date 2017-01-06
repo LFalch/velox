@@ -66,15 +66,19 @@ impl SpaceShooter {
             loop {
                 let p = socket.recv();
                 match p {
-                    Ok(ServerPacket::All(AllObjects {
+                    Ok(ServerPacket::PlayersAndPlanets {
                         players,
-                        lasers,
                         planets
-                    })) => {
+                    }) => {
                         *planets_m.lock().unwrap() = planets;
                         *players_m.lock().unwrap() = players;
+                    }
+                    Ok(ServerPacket::AllLasers(lasers)) => {
+                        if lasers.len() == 50 {
+                            println!("WARNING! Death by invisble lasers might occur");
+                        }
                         *lasers_m.lock().unwrap() = lasers;
-                    },
+                    }
                     Ok(ServerPacket::UpdateLaser(i, l)) => {
                         let mut lasers = lasers_m.lock().unwrap();
                         if let Some(laser) = lasers.get_mut(i) {
@@ -108,8 +112,10 @@ impl SpaceShooter {
                         }
                     }
                     Ok(ServerPacket::DeleteLasers(ls)) => {
-                        for i in ls.into_iter().rev() {
-                            lasers_m.lock().unwrap().remove(i);
+                        let mut lasers = lasers_m.lock().unwrap();
+                        let len = lasers.len();
+                        for i in ls.into_iter().rev().skip_while(|&i| i > len) {
+                            lasers.remove(i);
                         }
                     }
                     Ok(ServerPacket::DisconnectAck) => break,

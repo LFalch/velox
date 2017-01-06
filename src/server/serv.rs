@@ -62,7 +62,9 @@ impl Server {
             } else {
                 planet.obj.position += planet.obj.velocity * delta;
 
-                stay_in_bounds(&mut planet.obj.position);
+                if stay_in_bounds(&mut planet.obj.position) {
+                    self.server_socket.send_all(ServerPacket::UpdatePlanet(i, planet.obj), player_addrs.iter()).unwrap();
+                }
             }
         }
         self.planets.lock().unwrap().retain(|p| p.health != 0);
@@ -99,9 +101,11 @@ impl Server {
             self.server_socket.send_all(ServerPacket::DeleteLasers(dead_lasers), player_addrs.iter()).unwrap();
         }
 
-        for laser in lasers.iter_mut() {
+        for (i, laser) in lasers.iter_mut().enumerate() {
             laser.position += laser.velocity * delta;
-            stay_in_bounds(&mut laser.position);
+            if stay_in_bounds(&mut laser.position) {
+                self.server_socket.send_all(ServerPacket::UpdateLaser(i, *laser), player_addrs.iter()).unwrap();
+            }
         }
         if let Some(dead) = self.deads.pop() {
             let mut players = self.players.lock().unwrap();
@@ -122,11 +126,18 @@ impl Server {
                 match packet {
                     ClientPacket::Connect => {
                         let i = players.len();
-                        listener_server_socket.send(ServerPacket::All(AllObjects{
+                        listener_server_socket.send(ServerPacket::PlayersAndPlanets {
                             planets: listener_planets.lock().unwrap().iter().map(|p| p.obj).collect(),
-                            lasers: listener_lasers.lock().unwrap().iter().cloned().collect(),
                             players: players.values().map(|p| p.1.obj).collect()
-                        }), &remote).unwrap();
+                        }, &remote).unwrap();
+                        let lasers = listener_lasers.lock().unwrap();
+                        listener_server_socket.send(ServerPacket::AllLasers(
+                            lasers.iter().cloned().take(50).collect()
+                        ), &remote).unwrap();
+                        if lasers.len() > 50 {
+                            println!("Too many lasers to send to connecting player.\n\
+                            They might experience death by invisble lasers.");
+                        }
                         println!("{} connected!", remote);
                         players.insert(remote, (i, Player::default()));
                         to_send = Some(ServerPacket::UpdatePlayer(i, RotatableObject::default()));
