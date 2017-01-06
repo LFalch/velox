@@ -1,4 +1,4 @@
-extern crate velox;
+extern crate velox_core;
 extern crate rand;
 
 mod serv;

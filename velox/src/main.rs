@@ -1,6 +1,6 @@
 #[macro_use]
 extern crate korome;
-extern crate velox;
+extern crate velox_core;
 
 macro_rules! when{
     ($info:expr; $($state:expr, $key:ident => $b:block),+) => {

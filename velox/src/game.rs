@@ -5,8 +5,8 @@ use std::fs;
 
 use korome::{Game, Texture, FrameInfo, Drawer, GameUpdate, Graphics};
 
-use velox::obj::{BasicObject, RotatableObject, stay_in_bounds};
-use velox::net::*;
+use velox_core::obj::{BasicObject, RotatableObject, stay_in_bounds};
+use velox_core::net::*;
 
 #[derive(Default)]
 struct TextureBase(HashMap<String, Texture>);

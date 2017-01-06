@@ -4,8 +4,8 @@ use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use std::thread;
 
-use velox::net::*;
-use velox::obj::{Vector2, RotatableObject, Planet, Player, stay_in_bounds};
+use velox_core::net::*;
+use velox_core::obj::{Vector2, RotatableObject, Planet, Player, stay_in_bounds};
 
 pub struct Server {
     planets: Arc<Mutex<Vec<Planet>>>,

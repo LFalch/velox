@@ -1,0 +1,8 @@
+[package]
+name = "velox-server"
+version = "0.1.0-wip"
+authors = ["LFalch <lucas@wasd.dk>"]
+
+[dependencies]
+velox-core = {path = ".."}
+rand = "0.3"
