@@ -1,10 +1,26 @@
 [package]
-name = "space-shooter"
+name = "velox"
 version = "0.1.0-wip"
 authors = ["LFalch <lucas@wasd.dk>"]
 
 [dependencies]
-simple-vector2d = "0.1"
+simple-vector2d = {version = "0.1", features = ["rustc-serialize"]}
+rustc-serialize = "0.3"
+rand = "0.3"
 
 [dependencies.korome]
 version = "0.14"
+
+[dependencies.bincode]
+version = "0.6"
+default-features = false
+features = ["rustc-serialize"]
+
+[[bin]]
+name = "velox"
+path = "src/game/main.rs"
+doc = false
+
+[[bin]]
+name = "velox-server"
+path = "src/server/main.rs"
