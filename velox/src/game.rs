@@ -1,41 +1,36 @@
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::fs;
 
 use korome::{Game, Texture, FrameInfo, Drawer, GameUpdate, Graphics};
 
 use velox_core::obj::{BasicObject, RotatableObject, stay_in_bounds};
 use velox_core::net::*;
 
-#[derive(Default)]
-struct TextureBase(HashMap<String, Texture>);
+macro_rules! texturebase {
+    ($base:ident; $($tex:ident,)*) => {
+        struct $base {
+            $($tex: Texture,)*
+        }
 
-const TEXTURE_FOLDER: &'static str = "tex";
-
-impl TextureBase {
-    fn new(graphics: &Graphics) -> Self {
-        let mut hm = HashMap::new();
-
-        for file in fs::read_dir(TEXTURE_FOLDER).expect("read texture folder").filter_map(Result::ok) {
-            if file.path().extension().map(|x| x == "png").unwrap_or(false) {
-                let file_name = file.file_name();
-                let name = file_name.to_str().unwrap()[..file_name.len()-4].to_owned();
-                let t = Texture::from_file(graphics, file.path()).unwrap();
-
-                hm.insert(name, t);
+        impl $base {
+            fn new(graphics: &Graphics) -> Self {
+                $(
+                let $tex = Texture::from_png_bytes(graphics, include_bytes!(concat!("../tex/", stringify!($tex), ".png"))).unwrap();
+                )*
+                $base {
+                    $($tex: $tex,)*
+                }
             }
         }
+    };
+}
 
-        TextureBase(hm)
-    }
-    fn get_tex(&self, name: &str) -> &Texture {
-        if let Some(t) = self.0.get(name) {
-            t
-        } else {
-            panic!("Texture {} not loaded", name)
-        }
-    }
+texturebase!{TextureBase;
+    // arrow,
+    // sun,
+    laser,
+    planet,
+    ship,
 }
 
 pub struct SpaceShooter {
@@ -167,17 +162,13 @@ impl Game for SpaceShooter {
             self.socket.send(ClientPacket::PlayerRotate(rotation * 2. * info.delta)).unwrap();
         }
 
-        let planet_tex = self.texture_base.get_tex("planet");
-        let player_tex = self.texture_base.get_tex("ship");
-        let laser_tex = self.texture_base.get_tex("laser");
-
         drawer.clear(0., 0., 0.);
 
         for planet in self.planets.lock().unwrap().iter_mut() {
             planet.position += planet.velocity * info.delta;
             stay_in_bounds(&mut planet.position);
 
-            planet_tex.drawer()
+            self.texture_base.planet.drawer()
             .pos(planet.position.into())
             .draw(drawer);
         }
@@ -186,7 +177,7 @@ impl Game for SpaceShooter {
             player.position += player.velocity * info.delta;
             stay_in_bounds(&mut player.position);
 
-            player_tex.drawer()
+            self.texture_base.ship.drawer()
             .pos(player.position.into())
             .rotation(player.rotation)
             .draw(drawer);
@@ -196,7 +187,7 @@ impl Game for SpaceShooter {
             laser.position += laser.velocity * info.delta;
             stay_in_bounds(&mut laser.position);
 
-            laser_tex.drawer()
+            self.texture_base.laser.drawer()
             .pos(laser.position.into())
             .rotation(laser.rotation)
             .draw(drawer);
