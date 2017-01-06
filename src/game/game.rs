@@ -99,10 +99,8 @@ impl SpaceShooter {
                         }
                         players.push(p);
                     }
-                    Ok(ServerPacket::DeletePlayers(ps)) => {
-                        for i in ps.into_iter().rev() {
-                            players_m.lock().unwrap().remove(i);
-                        }
+                    Ok(ServerPacket::DeletePlayer(player_id)) => {
+                        players_m.lock().unwrap().remove(player_id);
                     }
                     Ok(ServerPacket::DeletePlanets(ps)) => {
                         for i in ps.into_iter().rev() {

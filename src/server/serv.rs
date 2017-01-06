@@ -11,7 +11,21 @@ pub struct Server {
     planets: Arc<Mutex<Vec<Planet>>>,
     server_socket: Arc<ServerSocket>,
     players: Arc<Mutex<HashMap<SocketAddr, (usize, Player)>>>,
+    deads: Vec<SocketAddr>,
     lasers: Arc<Mutex<Vec<RotatableObject>>>
+}
+
+fn remove_player(socket: &ServerSocket, players: &mut HashMap<SocketAddr, (usize, Player)>, dead: SocketAddr) {
+    socket.send(ServerPacket::DisconnectAck, &dead).unwrap();
+
+    if let Some((dead_id, _)) = players.remove(&dead) {
+        socket.send_all(ServerPacket::DeletePlayer(dead_id), players.keys()).unwrap();
+        for &mut (ref mut id, _) in players.values_mut() {
+            if *id > dead_id {
+                *id -= 1;
+            }
+        }
+    }
 }
 
 impl Server {
@@ -24,6 +38,7 @@ impl Server {
                 Planet::new(0., 0., -10., -2.),
                 Planet::new(0., 400., 50., -20.),
             ])),
+            deads: Vec::new(),
             lasers: Arc::default(),
             players: Arc::default(),
             server_socket: Arc::new(ServerSocket::new((Ipv4Addr::new(0, 0, 0, 0), 7351))),
@@ -32,7 +47,6 @@ impl Server {
     pub fn update(&mut self, delta: f32) {
         let mut dead_lasers = Vec::new();
         let mut dead_planets = Vec::new();
-        let mut dead_players = Vec::new();
         let player_addrs: Vec<_> = self.players.lock().unwrap().keys().cloned().collect();
 
         for (i, planet) in self.planets.lock().unwrap().iter_mut().enumerate() {
@@ -57,8 +71,7 @@ impl Server {
             self.server_socket.send_all(ServerPacket::DeletePlanets(dead_planets), player_addrs.iter()).unwrap();
         }
 
-        let mut deads = Vec::new();
-        for (addr, &mut (player_id, ref mut player)) in self.players.lock().unwrap().iter_mut() {
+        for (addr, &mut (_, ref mut player)) in self.players.lock().unwrap().iter_mut() {
             for (l, laser) in self.lasers.lock().unwrap().iter().enumerate() {
                 if player.obj.position.distance_to(laser.position) < 32. {
                     player.health = player.health.saturating_sub(1);
@@ -67,8 +80,7 @@ impl Server {
             }
             if player.health == 0 {
                 println!("{} died!", addr);
-                deads.push(addr.clone());
-                dead_players.push(player_id);
+                self.deads.push(addr.clone());
             }
 
             player.obj.position += player.obj.velocity * delta;
@@ -91,12 +103,9 @@ impl Server {
             laser.position += laser.velocity * delta;
             stay_in_bounds(&mut laser.position);
         }
-        self.server_socket.send_all(ServerPacket::DisconnectAck, deads.iter()).unwrap();
-        for addr in deads {
-            self.players.lock().unwrap().remove(&addr);
-        }
-        if !dead_players.is_empty() {
-            self.server_socket.send_all(ServerPacket::DeletePlayers(dead_players), player_addrs.iter()).unwrap()
+        if let Some(dead) = self.deads.pop() {
+            let mut players = self.players.lock().unwrap();
+            remove_player(&self.server_socket, &mut players, dead);
         }
     }
     pub fn run(mut self) {
@@ -118,6 +127,7 @@ impl Server {
                             lasers: listener_lasers.lock().unwrap().iter().cloned().collect(),
                             players: players.values().map(|p| p.1.obj).collect()
                         }), &remote).unwrap();
+                        println!("{} connected!", remote);
                         players.insert(remote, (i, Player::default()));
                         to_send = Some(ServerPacket::UpdatePlayer(i, RotatableObject::default()));
                     }
@@ -146,8 +156,7 @@ impl Server {
                         }
                     }
                     ClientPacket::Disconnect => {
-                        players.remove(&remote);
-                        listener_server_socket.send(ServerPacket::DisconnectAck, &remote).unwrap();
+                        remove_player(&listener_server_socket, &mut players, remote);
                     }
                 }
 

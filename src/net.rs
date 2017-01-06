@@ -28,7 +28,7 @@ pub enum ServerPacket {
     UpdatePlayer(usize, RotatableObject),
     UpdateLaser(usize, RotatableObject),
     UpdatePlanet(usize, BasicObject),
-    DeletePlayers(Vec<usize>),
+    DeletePlayer(usize),
     DeleteLasers(Vec<usize>),
     DeletePlanets(Vec<usize>),
     DisconnectAck
