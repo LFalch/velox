@@ -1,6 +1,7 @@
 use super::obj::{BasicObject, RotatableObject};
 
 use std::net::{UdpSocket, ToSocketAddrs, SocketAddr};
+use std::collections::BTreeMap;
 use std::io::Error;
 
 use bincode::rustc_serialize::{encode, decode};
@@ -16,26 +17,21 @@ pub enum ClientPacket {
     Disconnect,
 }
 
-#[derive(Default, RustcEncodable, RustcDecodable, Debug)]
-pub struct AllObjects {
-    pub players: Vec<RotatableObject>,
-    pub lasers: Vec<RotatableObject>,
-    pub planets: Vec<BasicObject>
-}
+pub type Idx = u16;
 
 #[derive(RustcEncodable, RustcDecodable, Debug)]
 pub enum ServerPacket {
     PlayersAndPlanets {
-        players: Vec<RotatableObject>,
-        planets: Vec<BasicObject>
+        players: BTreeMap<Idx, RotatableObject>,
+        planets: BTreeMap<Idx, BasicObject>
     },
-    AllLasers(Vec<RotatableObject>),
-    UpdatePlayer(usize, RotatableObject),
-    UpdateLaser(usize, RotatableObject),
-    UpdatePlanet(usize, BasicObject),
-    DeletePlayer(usize),
-    DeleteLasers(Vec<usize>),
-    DeletePlanets(Vec<usize>),
+    Lasers(BTreeMap<Idx, RotatableObject>),
+    UpdatePlayer(Idx, RotatableObject),
+    UpdateLaser(Idx, RotatableObject),
+    UpdatePlanet(Idx, BasicObject),
+    DeletePlayer(Idx),
+    DeleteLasers(Vec<Idx>),
+    DeletePlanets(Vec<Idx>),
     DisconnectAck
 }
 

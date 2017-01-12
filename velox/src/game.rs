@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -36,9 +37,9 @@ texturebase!{TextureBase;
 pub struct SpaceShooter {
     texture_base: TextureBase,
     socket: Arc<ClientSocket>,
-    planets: Arc<Mutex<Vec<BasicObject>>>,
-    players: Arc<Mutex<Vec<RotatableObject>>>,
-    lasers: Arc<Mutex<Vec<RotatableObject>>>,
+    planets: Arc<Mutex<BTreeMap<Idx, BasicObject>>>,
+    players: Arc<Mutex<BTreeMap<Idx, RotatableObject>>>,
+    lasers: Arc<Mutex<BTreeMap<Idx, RotatableObject>>>,
 }
 
 impl SpaceShooter {
@@ -68,49 +69,31 @@ impl SpaceShooter {
                         *planets_m.lock().unwrap() = planets;
                         *players_m.lock().unwrap() = players;
                     }
-                    Ok(ServerPacket::AllLasers(lasers)) => {
-                        if lasers.len() == 50 {
-                            println!("WARNING! Death by invisble lasers might occur");
-                        }
-                        *lasers_m.lock().unwrap() = lasers;
+                    Ok(ServerPacket::Lasers(mut lasers)) => {
+                        lasers_m.lock().unwrap().append(&mut lasers);
                     }
                     Ok(ServerPacket::UpdateLaser(i, l)) => {
-                        let mut lasers = lasers_m.lock().unwrap();
-                        if let Some(laser) = lasers.get_mut(i) {
-                            *laser = l;
-                            continue
-                        }
-                        lasers.push(l);
+                        lasers_m.lock().unwrap().insert(i, l);
                     }
                     Ok(ServerPacket::UpdatePlanet(i, p)) => {
-                        let mut planets = planets_m.lock().unwrap();
-                        if let Some(planet) = planets.get_mut(i) {
-                            *planet = p;
-                            continue
-                        }
-                        planets.push(p);
+                        planets_m.lock().unwrap().insert(i, p);
                     }
                     Ok(ServerPacket::UpdatePlayer(i, p)) => {
-                        let mut players = players_m.lock().unwrap();
-                        if let Some(player) = players.get_mut(i) {
-                            *player = p;
-                            continue
-                        }
-                        players.push(p);
+                        players_m.lock().unwrap().insert(i, p);
                     }
                     Ok(ServerPacket::DeletePlayer(player_id)) => {
-                        players_m.lock().unwrap().remove(player_id);
+                        players_m.lock().unwrap().remove(&player_id);
                     }
                     Ok(ServerPacket::DeletePlanets(ps)) => {
-                        for i in ps.into_iter().rev() {
-                            planets_m.lock().unwrap().remove(i);
+                        let mut planets = planets_m.lock().unwrap();
+                        for i in ps.into_iter() {
+                            planets.remove(&i);
                         }
                     }
                     Ok(ServerPacket::DeleteLasers(ls)) => {
                         let mut lasers = lasers_m.lock().unwrap();
-                        let len = lasers.len();
-                        for i in ls.into_iter().rev().skip_while(|&i| i > len) {
-                            lasers.remove(i);
+                        for i in ls.into_iter() {
+                            lasers.remove(&i);
                         }
                     }
                     Ok(ServerPacket::DisconnectAck) => break,
@@ -137,6 +120,11 @@ impl Game for SpaceShooter {
             },
             false, Space => {
                 self.socket.send(ClientPacket::Shoot).unwrap();
+            },
+            false, J => {
+                println!("Planets: {:#?}", *self.planets.lock().unwrap());
+                println!("Players: {:#?}", *self.players.lock().unwrap());
+                println!("Lasers: {:#?}", *self.lasers.lock().unwrap());
             }
         }
         let mut impulse = 0.;
@@ -164,7 +152,7 @@ impl Game for SpaceShooter {
 
         drawer.clear(0., 0., 0.);
 
-        for planet in self.planets.lock().unwrap().iter_mut() {
+        for planet in self.planets.lock().unwrap().values_mut() {
             planet.position += planet.velocity * info.delta;
             stay_in_bounds(&mut planet.position);
 
@@ -173,7 +161,7 @@ impl Game for SpaceShooter {
             .draw(drawer);
         }
 
-        for player in self.players.lock().unwrap().iter_mut() {
+        for player in self.players.lock().unwrap().values_mut() {
             player.position += player.velocity * info.delta;
             stay_in_bounds(&mut player.position);
 
@@ -183,7 +171,7 @@ impl Game for SpaceShooter {
             .draw(drawer);
         }
 
-        for laser in self.lasers.lock().unwrap().iter_mut() {
+        for laser in self.lasers.lock().unwrap().values_mut() {
             laser.position += laser.velocity * info.delta;
             stay_in_bounds(&mut laser.position);
 
