@@ -1,4 +1,4 @@
-# Space shooter (WIP title) [![Build Status](https://travis-ci.org/LFalch/space-shooter.svg?branch=master)](https://travis-ci.org/LFalch/space-shooter)
+# Velox [![Build Status](https://travis-ci.org/LFalch/velox.svg?branch=master)](https://travis-ci.org/LFalch/velox)
 
 A space ship shooter game where you program the ships' AI. Very much WIP!
 
@@ -6,7 +6,7 @@ The original version was written in Java and had a lot more features, but that
 project had been more or less abandoned.
 
 The game uses my game engine [korome](https://github.com/LFalch/korome) (which
-was in fact also written in Java orignally).
+was in fact also written in Java originally).
 
 ## Idea
 
