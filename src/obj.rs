@@ -2,14 +2,14 @@ pub type Vect = Vector2<f32>;
 pub use simple_vector2d::Vector2;
 
 #[derive(Default, Debug, Copy, Clone)]
-#[derive(RustcEncodable, RustcDecodable)]
+#[derive(Serialize, Deserialize)]
 pub struct BasicObject {
     pub position: Vect,
     pub velocity: Vect,
 }
 
 #[derive(Default, Debug, Copy, Clone)]
-#[derive(RustcEncodable, RustcDecodable)]
+#[derive(Serialize, Deserialize)]
 pub struct RotatableObject {
     pub position: Vect,
     pub velocity: Vect,
@@ -26,14 +26,14 @@ impl BasicObject {
 }
 
 #[derive(Default, Debug, Copy, Clone)]
-#[derive(RustcEncodable, RustcDecodable)]
+#[derive(Serialize, Deserialize)]
 pub struct Planet {
     pub obj: BasicObject,
     pub health: u8
 }
 
 #[derive(Debug, Copy, Clone)]
-#[derive(RustcEncodable, RustcDecodable)]
+#[derive(Serialize, Deserialize)]
 pub struct Player{
     pub obj: RotatableObject,
     pub health: u8

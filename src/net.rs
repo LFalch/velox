@@ -4,11 +4,10 @@ use std::net::{UdpSocket, ToSocketAddrs, SocketAddr};
 use std::collections::BTreeMap;
 use std::io::Error;
 
-use bincode::rustc_serialize::{encode, decode};
-use bincode::SizeLimit;
-pub use bincode::rustc_serialize::encoded_size;
+use bincode::{serialize, deserialize, Bounded};
+pub use bincode::serialized_size;
 
-#[derive(RustcEncodable, RustcDecodable, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum ClientPacket {
     Connect,
     PlayerImpulse(f32),
@@ -19,7 +18,7 @@ pub enum ClientPacket {
 
 pub type Idx = u16;
 
-#[derive(RustcEncodable, RustcDecodable, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum ServerPacket {
     PlayersAndPlanets {
         players: BTreeMap<Idx, RotatableObject>,
@@ -61,10 +60,10 @@ impl ClientSocket {
     pub fn recv(&self) -> Result<ServerPacket, Error> {
         let mut buf = [0u8; BUFFER_SIZE];
         self.0.recv(&mut buf)
-            .and_then(|size| decode(&buf[..size]).map_err(invalid_data_error))
+            .and_then(|size| deserialize(&buf[..size]).map_err(invalid_data_error))
     }
     pub fn send(&self, packet: ClientPacket) -> Result<usize, Error> {
-        let d = encode(&packet, SizeLimit::Bounded(BUFFER_SIZE_SRV64)).map_err(invalid_data_error)?;
+        let d = serialize(&packet, Bounded(BUFFER_SIZE_SRV64)).map_err(invalid_data_error)?;
         self.0.send(&d)
     }
 }
@@ -79,21 +78,21 @@ impl ServerSocket {
         let mut buf = [0u8; BUFFER_SIZE_SRV];
         match self.0.recv_from(&mut buf) {
             Ok((size, remote)) => {
-                decode(&buf[..size]).map(|p| (remote, p)).map_err(invalid_data_error)
+                deserialize(&buf[..size]).map(|p| (remote, p)).map_err(invalid_data_error)
             }
             Err(e) => Err(e),
         }
     }
     pub fn send_all<'a, I: 'a>(&self, packet: ServerPacket, addrs: I) -> Result<(), Error>
     where I: IntoIterator<Item=&'a SocketAddr> {
-        let data = encode(&packet, SizeLimit::Bounded(BUFFER_SIZE64)).map_err(invalid_data_error)?;
+        let data = serialize(&packet, Bounded(BUFFER_SIZE64)).map_err(invalid_data_error)?;
         for addr in addrs {
             self.0.send_to(&data, addr)?;
         }
         Ok(())
     }
     pub fn send(&self, packet: ServerPacket, addr: &SocketAddr) -> Result<usize, Error> {
-        let data = encode(&packet, SizeLimit::Bounded(BUFFER_SIZE64)).map_err(invalid_data_error)?;
+        let data = serialize(&packet, Bounded(BUFFER_SIZE64)).map_err(invalid_data_error)?;
         self.0.send_to(&data, addr)
     }
 }

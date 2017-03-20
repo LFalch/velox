@@ -7,11 +7,8 @@ version = "0.1.0-wip"
 authors = ["LFalch <lucas@wasd.dk>"]
 
 [dependencies]
-simple-vector2d = {version = "0.1", features = ["rustc-serialize"]}
-rustc-serialize = "0.3"
+simple-vector2d = {version = "0.1", features = ["serde-serial"]}
+serde = "0.9"
+serde_derive = "0.9"
 rand = "0.3"
-
-[dependencies.bincode]
-version = "0.6"
-default-features = false
-features = ["rustc-serialize"]
+bincode = "=1.0.0-alpha6"
