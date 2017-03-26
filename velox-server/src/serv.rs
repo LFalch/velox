@@ -93,6 +93,7 @@ impl Server {
             for (&l, laser) in self.lasers.lock().unwrap().iter() {
                 if player.obj.position.distance_to(laser.position) < 32. {
                     player.health = player.health.saturating_sub(1);
+                    self.server_socket.send(ServerPacket::UpdateHealth(player.health), addr).unwrap();
                     dead_lasers.push(l);
                 }
             }
@@ -147,6 +148,7 @@ impl Server {
                             planets: listener_planets.lock().unwrap().iter().map(|(&i, p)| (i, p.obj)).collect(),
                             players: players.iter().map(|(&i, p)| (i, p.obj)).collect()
                         }, &remote).unwrap();
+                        listener_server_socket.send(ServerPacket::UpdateHealth(5), &remote).unwrap();
                         let mut lasers: Vec<_> = listener_lasers.lock().unwrap().iter()
                             .map(|(&i, &l)| (i, l)).collect();
                         while !lasers.is_empty() {

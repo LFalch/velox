@@ -31,6 +31,7 @@ pub enum ServerPacket {
     DeletePlayer(Idx),
     DeleteLasers(Vec<Idx>),
     DeletePlanets(Vec<Idx>),
+    UpdateHealth(u8),
     DisconnectAck
 }
 

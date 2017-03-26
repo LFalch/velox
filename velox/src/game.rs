@@ -2,53 +2,59 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use korome::{Game, Texture, FrameInfo, Drawer, GameUpdate, Graphics};
+use korome::{Game, Texture, FrameInfo, Drawer, GameUpdate, Graphics, Quad};
 
 use velox_core::obj::{BasicObject, RotatableObject, stay_in_bounds};
 use velox_core::net::*;
 
-macro_rules! texturebase {
-    ($base:ident; $($tex:ident,)*) => {
+macro_rules! assets {
+    ($base:ident, $g:ident; $($tex:ident),*; $($quad:ident : $def:expr,)*) => {
         struct $base {
             $($tex: Texture,)*
+            $($quad: Quad,)*
         }
 
         impl $base {
-            fn new(graphics: &Graphics) -> Self {
+            fn new($g: &Graphics) -> Self {
                 $(
-                let $tex = Texture::from_png_bytes(graphics, include_bytes!(concat!("../tex/", stringify!($tex), ".png"))).unwrap();
+                let $tex = Texture::from_png_bytes($g, include_bytes!(concat!("../tex/", stringify!($tex), ".png"))).unwrap();
                 )*
                 $base {
                     $($tex: $tex,)*
+                    $($quad: $def,)*
                 }
             }
         }
     };
 }
 
-texturebase!{TextureBase;
+assets!{Assets, graphics;
     // arrow,
     // sun,
     laser,
     planet,
-    ship,
+    ship;
+    hp_bar: Quad::new_rect(graphics, [0.77, 0.77, 0.77, 0.6], 160., 40.).unwrap(),
+    hp: Quad::new_rect(graphics, [0., 1., 0., 0.6], 30., 30.).unwrap(),
 }
 
 pub struct SpaceShooter {
-    texture_base: TextureBase,
+    assets: Assets,
     socket: Arc<ClientSocket>,
     planets: Arc<Mutex<BTreeMap<Idx, BasicObject>>>,
     players: Arc<Mutex<BTreeMap<Idx, RotatableObject>>>,
     lasers: Arc<Mutex<BTreeMap<Idx, RotatableObject>>>,
+    health: Arc<Mutex<u8>>,
 }
 
 impl SpaceShooter {
     pub fn new(graphics: &Graphics, server: &str) -> Self {
         SpaceShooter {
-            texture_base: TextureBase::new(graphics),
+            assets: Assets::new(graphics),
             planets: Arc::default(),
             players: Arc::default(),
             lasers: Arc::default(),
+            health: Arc::default(),
             socket: Arc::new(ClientSocket::new(server))
         }
     }
@@ -58,6 +64,7 @@ impl SpaceShooter {
         let lasers_m = self.lasers.clone();
         let planets_m = self.planets.clone();
         let players_m = self.players.clone();
+        let health_m = self.health.clone();
         thread::spawn(move || {
             loop {
                 let p = socket.recv();
@@ -95,6 +102,9 @@ impl SpaceShooter {
                         for i in ls.into_iter() {
                             lasers.remove(&i);
                         }
+                    }
+                    Ok(ServerPacket::UpdateHealth(h)) => {
+                        *health_m.lock().unwrap() = h;
                     }
                     Ok(ServerPacket::DisconnectAck) => break,
                     Err(e) => println!("Error! {:?}", e),
@@ -156,7 +166,7 @@ impl Game for SpaceShooter {
             planet.position += planet.velocity * info.delta;
             stay_in_bounds(&mut planet.position);
 
-            self.texture_base.planet.drawer()
+            self.assets.planet.drawer()
             .pos(planet.position.into())
             .draw(drawer);
         }
@@ -165,7 +175,7 @@ impl Game for SpaceShooter {
             player.position += player.velocity * info.delta;
             stay_in_bounds(&mut player.position);
 
-            self.texture_base.ship.drawer()
+            self.assets.ship.drawer()
             .pos(player.position.into())
             .rotation(player.rotation)
             .draw(drawer);
@@ -175,10 +185,20 @@ impl Game for SpaceShooter {
             laser.position += laser.velocity * info.delta;
             stay_in_bounds(&mut laser.position);
 
-            self.texture_base.laser.drawer()
+            self.assets.laser.drawer()
             .pos(laser.position.into())
             .rotation(laser.rotation)
             .draw(drawer);
+        }
+
+        let hp = *self.health.lock().unwrap();
+        self.assets.hp_bar.drawer()
+            .pos((-500., 430.))
+            .draw(drawer);
+        for i in 0..hp {
+            self.assets.hp.drawer()
+                .pos((-560.+30.*i as f32, 430.))
+                .draw(drawer);
         }
 
         GameUpdate::Nothing
