@@ -2,43 +2,42 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use korome::{Game, Texture, FrameInfo, Drawer, GameUpdate, Graphics, Quad};
-
 use velox_core::obj::{BasicObject, RotatableObject, stay_in_bounds};
 use velox_core::net::*;
 
+use piston_window::*;
+
 macro_rules! assets {
-    ($base:ident, $g:ident; $($tex:ident),*; $($quad:ident : $def:expr,)*) => {
+    ($base:ident; $($tex:ident),*) => {
         struct $base {
-            $($tex: Texture,)*
-            $($quad: Quad,)*
+            $($tex: G2dTexture,)*
         }
 
         impl $base {
-            fn new($g: &Graphics) -> Self {
+            fn new(w: &mut PistonWindow) -> Self {
+                let ts = TextureSettings::new();
                 $(
-                let $tex = Texture::from_png_bytes($g, include_bytes!(concat!("../tex/", stringify!($tex), ".png"))).unwrap();
+                let $tex = Texture::from_path(&mut w.factory,
+                    concat!("tex/", stringify!($tex), ".png"), Flip::None, &ts).unwrap();
                 )*
                 $base {
                     $($tex: $tex,)*
-                    $($quad: $def,)*
                 }
             }
         }
     };
 }
 
-assets!{Assets, graphics;
+assets!{Assets;
     // arrow,
     // sun,
     laser,
     planet,
-    ship;
-    hp_bar: Quad::new_rect(graphics, [0.77, 0.77, 0.77, 0.6], 160., 40.).unwrap(),
-    hp: Quad::new_rect(graphics, [0., 1., 0., 0.6], 30., 30.).unwrap(),
+    ship
 }
 
 pub struct SpaceShooter {
+    window: PistonWindow,
     assets: Assets,
     socket: Arc<ClientSocket>,
     planets: Arc<Mutex<BTreeMap<Idx, BasicObject>>>,
@@ -48,9 +47,10 @@ pub struct SpaceShooter {
 }
 
 impl SpaceShooter {
-    pub fn new(graphics: &Graphics, server: &str) -> Self {
+    pub fn new(mut window: PistonWindow, server: &str) -> Self {
         SpaceShooter {
-            assets: Assets::new(graphics),
+            assets: Assets::new(&mut window),
+            window: window,
             planets: Arc::default(),
             players: Arc::default(),
             lasers: Arc::default(),
@@ -113,97 +113,116 @@ impl SpaceShooter {
             println!("Network thread successfully stopped");
         });
     }
-}
+    pub fn run(self) {
+        let SpaceShooter {
+            assets,
+            mut window,
+            planets,
+            players,
+            lasers,
+            health,
+            socket,
+        } = self;
+        let (mut up, mut down, mut left, mut right)
+            = (false, false, false, false);
 
-impl Drop for SpaceShooter {
-    fn drop(&mut self) {
-        self.socket.send(ClientPacket::Disconnect).unwrap();
+        while let Some(e) = window.next() {
+            match e {
+                Input::Release(b) => {
+                    match b {
+                        Button::Keyboard(Key::Space) => {socket.send(ClientPacket::Shoot).unwrap();},
+                        Button::Keyboard(Key::J) => {
+                            println!("Planets: {:#?}", *planets.lock().unwrap());
+                            println!("Players: {:#?}", *players.lock().unwrap());
+                            println!("Lasers: {:#?}", *lasers.lock().unwrap());
+                        }
+                        Button::Keyboard(Key::Up) | Button::Keyboard(Key::W) => up = false,
+                        Button::Keyboard(Key::Down) | Button::Keyboard(Key::S) => down = false,
+                        Button::Keyboard(Key::Left) | Button::Keyboard(Key::A) => left = false,
+                        Button::Keyboard(Key::Right) | Button::Keyboard(Key::D) => right = false,
+                        _ => ()
+                    }
+                }
+                Input::Press(b) => {
+                    match b {
+                        Button::Keyboard(Key::Up) | Button::Keyboard(Key::W) => up = true,
+                        Button::Keyboard(Key::Down) | Button::Keyboard(Key::S) => down = true,
+                        Button::Keyboard(Key::Left) | Button::Keyboard(Key::A) => left = true,
+                        Button::Keyboard(Key::Right) | Button::Keyboard(Key::D) => right = true,
+                        _ => ()
+                    }
+                }
+                Input::Render(r) => {
+                    let w = r.width as f64;
+                    let h = r.height as f64;
+                    window.draw_2d(&e, |c, g| {
+                        clear([0., 0., 0., 1.], g);
+
+                        for planet in planets.lock().unwrap().values() {
+                            let (x, y) = planet.position.into();
+                            image(&assets.planet, c.transform.trans(x as f64+w/2., y as f64+h/2.).trans(-32., -32.), g)
+                        }
+
+                        for player in players.lock().unwrap().values() {
+                            let (x, y) = player.position.into();
+                            let mat = [[1., 0., 0.], [0., 1., 0.]].trans(x as f64+w/2., y as f64+h/2.).rot_rad(player.rotation as f64).trans(-16., -16.);
+                            image(&assets.ship, c.transform.append_transform(mat), g)
+                        }
+
+                        for laser in lasers.lock().unwrap().values() {
+                            let (x, y) = laser.position.into();
+                            let mat = [[1., 0., 0.], [0., 1., 0.]].trans(x as f64+w/2., y as f64+h/2.).rot_rad(laser.rotation as f64).trans(-16., -16.);
+                            image(&assets.laser, c.transform.append_transform(mat), g)
+                        }
+
+                        let hp = *health.lock().unwrap();
+                        rectangle([0.77, 0.77, 0.77, 0.6], [0., 0., 160., 40.], c.transform, g);
+                        rectangle([0., 1., 0., 0.6], [10., 5., 30.*hp as f64, 20.], c.transform, g);
+                    });
+                }
+                Input::Update(u) => {
+                    let (mut impulse, mut rotation) = (0., 0.);
+                    if up {
+                        impulse += 1.;
+                    }
+                    if down {
+                        impulse -= 1.;
+                    }
+                    if right {
+                        rotation += 1.;
+                    }
+                    if left {
+                        rotation -= 1.;
+                    }
+                    if impulse != 0. {
+                        socket.send(ClientPacket::PlayerImpulse(impulse * 400. * u.dt as f32)).unwrap();
+                    }
+                    if rotation != 0. {
+                        socket.send(ClientPacket::PlayerRotate(rotation * 2. * u.dt as f32)).unwrap();
+                    }
+
+                    for planet in planets.lock().unwrap().values_mut() {
+                        planet.position += planet.velocity * u.dt as f32;
+                        stay_in_bounds(&mut planet.position);
+                    }
+
+                    for player in players.lock().unwrap().values_mut() {
+                        player.position += player.velocity * u.dt as f32;
+                        stay_in_bounds(&mut player.position);
+                    }
+
+                    for laser in lasers.lock().unwrap().values_mut() {
+                        laser.position += laser.velocity * u.dt as f32;
+                        stay_in_bounds(&mut laser.position);
+                    }
+                }
+                Input::Close(_) => {socket.send(ClientPacket::Disconnect).unwrap();}
+                _ => {} // Catch uninteresting events
+            }
+        }
     }
 }
 
-impl Game for SpaceShooter {
-    type ReturnType = GameUpdate;
-    fn frame(&mut self, info: &FrameInfo, drawer: &mut Drawer) -> GameUpdate {
-        when!{info;
-            false, Escape => {
-                return GameUpdate::Close
-            },
-            false, Space => {
-                self.socket.send(ClientPacket::Shoot).unwrap();
-            },
-            false, J => {
-                println!("Planets: {:#?}", *self.planets.lock().unwrap());
-                println!("Players: {:#?}", *self.players.lock().unwrap());
-                println!("Lasers: {:#?}", *self.lasers.lock().unwrap());
-            }
-        }
-        let mut impulse = 0.;
-        let mut rotation = 0.;
-        is_down! {info;
-            W, Up => {
-                impulse += 1.;
-            },
-            S, Down => {
-                impulse -= 1.;
-            },
-            D, Right => {
-                rotation -= 1.;
-            },
-            A, Left => {
-                rotation += 1.;
-            }
-        }
-        if impulse != 0. {
-            self.socket.send(ClientPacket::PlayerImpulse(impulse * 400. * info.delta)).unwrap();
-        }
-        if rotation != 0. {
-            self.socket.send(ClientPacket::PlayerRotate(rotation * 2. * info.delta)).unwrap();
-        }
-
-        drawer.clear(0., 0., 0.);
-
-        for planet in self.planets.lock().unwrap().values_mut() {
-            planet.position += planet.velocity * info.delta;
-            stay_in_bounds(&mut planet.position);
-
-            self.assets.planet.drawer()
-            .pos(planet.position.into())
-            .draw(drawer);
-        }
-
-        for player in self.players.lock().unwrap().values_mut() {
-            player.position += player.velocity * info.delta;
-            stay_in_bounds(&mut player.position);
-
-            self.assets.ship.drawer()
-            .pos(player.position.into())
-            .rotation(player.rotation)
-            .draw(drawer);
-        }
-
-        for laser in self.lasers.lock().unwrap().values_mut() {
-            laser.position += laser.velocity * info.delta;
-            stay_in_bounds(&mut laser.position);
-
-            self.assets.laser.drawer()
-            .pos(laser.position.into())
-            .rotation(laser.rotation)
-            .draw(drawer);
-        }
-
-        let hp = *self.health.lock().unwrap();
-        self.assets.hp_bar.drawer()
-            .pos((-500., 430.))
-            .draw(drawer);
-        for i in 0..hp {
-            self.assets.hp.drawer()
-                .pos((-560.+30.*i as f32, 430.))
-                .draw(drawer);
-        }
-
-        GameUpdate::Nothing
-    }
-}
 // fn collision(relative_velocity: Vect, dist: Vect) -> Vect{
 // (2. * m2)/(m1 + m2) * */ relative_velocity.dot(dist) / dist.length_squared() * dist
 // }
