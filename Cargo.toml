@@ -8,7 +8,7 @@ authors = ["LFalch <lucas@wasd.dk>"]
 
 [dependencies]
 simple-vector2d = {version = "0.1", features = ["serde-serial"]}
-serde = "0.9"
-serde_derive = "0.9"
+serde = "1"
+serde_derive = "1"
 rand = "0.3"
-bincode = "=1.0.0-alpha6"
+bincode = "0.9"

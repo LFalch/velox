@@ -36,6 +36,14 @@ assets!{Assets;
     ship
 }
 
+pub fn pos_mat(x: f64, y: f64, width: f64, height: f64, w: f64, h: f64) -> math::Matrix2d {
+    [[1., 0., 0.], [0., 1., 0.]].trans(x+w - width, y+h - height)
+}
+
+pub fn pos_rot_mat(x: f64, y: f64, width: f64, height: f64, w: f64, h: f64, rot: f64) -> math::Matrix2d {
+    [[1., 0., 0.], [0., 1., 0.]].trans(x+w, y+h).rot_rad(rot).trans(-width, -height)
+}
+
 pub struct SpaceShooter {
     window: PistonWindow,
     assets: Assets,
@@ -126,53 +134,50 @@ impl SpaceShooter {
         let (mut up, mut down, mut left, mut right)
             = (false, false, false, false);
 
+
         while let Some(e) = window.next() {
             match e {
-                Input::Release(b) => {
-                    match b {
-                        Button::Keyboard(Key::Space) => {socket.send(ClientPacket::Shoot).unwrap();},
-                        Button::Keyboard(Key::J) => {
+                Event::Input(Input::Button(b)) => {
+                    let press = b.state == ButtonState::Press;
+
+                    match b.button {
+                        Button::Keyboard(Key::Space) if press => {
+                            socket.send(ClientPacket::Shoot).unwrap();
+                        }
+                        Button::Keyboard(Key::J) if press => {
                             println!("Planets: {:#?}", *planets.lock().unwrap());
                             println!("Players: {:#?}", *players.lock().unwrap());
                             println!("Lasers: {:#?}", *lasers.lock().unwrap());
                         }
-                        Button::Keyboard(Key::Up) | Button::Keyboard(Key::W) => up = false,
-                        Button::Keyboard(Key::Down) | Button::Keyboard(Key::S) => down = false,
-                        Button::Keyboard(Key::Left) | Button::Keyboard(Key::A) => left = false,
-                        Button::Keyboard(Key::Right) | Button::Keyboard(Key::D) => right = false,
+                        Button::Keyboard(Key::Up) | Button::Keyboard(Key::W) => up = press,
+                        Button::Keyboard(Key::Down) | Button::Keyboard(Key::S) => down = press,
+                        Button::Keyboard(Key::Left) | Button::Keyboard(Key::A) => left = press,
+                        Button::Keyboard(Key::Right) | Button::Keyboard(Key::D) => right = press,
                         _ => ()
                     }
                 }
-                Input::Press(b) => {
-                    match b {
-                        Button::Keyboard(Key::Up) | Button::Keyboard(Key::W) => up = true,
-                        Button::Keyboard(Key::Down) | Button::Keyboard(Key::S) => down = true,
-                        Button::Keyboard(Key::Left) | Button::Keyboard(Key::A) => left = true,
-                        Button::Keyboard(Key::Right) | Button::Keyboard(Key::D) => right = true,
-                        _ => ()
-                    }
-                }
-                Input::Render(r) => {
-                    let w = r.width as f64;
-                    let h = r.height as f64;
+                Event::Loop(Loop::Render(r)) => {
+                    let w = r.width as f64/2.;
+                    let h = r.height as f64/2.;
                     window.draw_2d(&e, |c, g| {
                         clear([0., 0., 0., 1.], g);
 
                         for planet in planets.lock().unwrap().values() {
                             let (x, y) = planet.position.into();
-                            image(&assets.planet, c.transform.trans(x as f64+w/2., y as f64+h/2.).trans(-32., -32.), g)
+                            image(&assets.planet, c.transform.append_transform(pos_mat(
+                                x as f64, y as f64, 32., 32., w, h)), g)
                         }
 
                         for player in players.lock().unwrap().values() {
                             let (x, y) = player.position.into();
-                            let mat = [[1., 0., 0.], [0., 1., 0.]].trans(x as f64+w/2., y as f64+h/2.).rot_rad(player.rotation as f64).trans(-16., -16.);
-                            image(&assets.ship, c.transform.append_transform(mat), g)
+                            image(&assets.ship, c.transform.append_transform(pos_rot_mat(
+                                x as f64, y as f64, 16., 16., w, h, player.rotation as f64)), g)
                         }
 
                         for laser in lasers.lock().unwrap().values() {
                             let (x, y) = laser.position.into();
-                            let mat = [[1., 0., 0.], [0., 1., 0.]].trans(x as f64+w/2., y as f64+h/2.).rot_rad(laser.rotation as f64).trans(-16., -16.);
-                            image(&assets.laser, c.transform.append_transform(mat), g)
+                            image(&assets.laser, c.transform.append_transform(pos_rot_mat(
+                                x as f64, y as f64, 16., 16., w, h, laser.rotation as f64)), g)
                         }
 
                         let hp = *health.lock().unwrap();
@@ -180,7 +185,7 @@ impl SpaceShooter {
                         rectangle([0., 1., 0., 0.6], [10., 5., 30.*hp as f64, 20.], c.transform, g);
                     });
                 }
-                Input::Update(u) => {
+                Event::Loop(Loop::Update(u)) => {
                     let (mut impulse, mut rotation) = (0., 0.);
                     if up {
                         impulse += 1.;
@@ -216,7 +221,7 @@ impl SpaceShooter {
                         stay_in_bounds(&mut laser.position);
                     }
                 }
-                Input::Close(_) => {socket.send(ClientPacket::Disconnect).unwrap();}
+                Event::Input(Input::Close(_)) => {socket.send(ClientPacket::Disconnect).unwrap();}
                 _ => {} // Catch uninteresting events
             }
         }
