@@ -5,7 +5,7 @@ use std::collections::{HashMap, BTreeMap};
 use std::thread;
 
 use velox_core::net::*;
-use velox_core::obj::{Vector2, RotatableObject, Planet, Player, stay_in_bounds};
+use velox_core::obj::{Vector2, RotatableObject, Planet, Player};
 
 pub struct Server {
     planets: Arc<Mutex<BTreeMap<Idx, Planet>>>,
@@ -60,7 +60,7 @@ impl Server {
 
         for (&i, planet) in self.planets.lock().unwrap().iter_mut() {
             for (&j, laser) in self.lasers.lock().unwrap().iter() {
-                if planet.obj.position.distance_to(laser.position) < 32. {
+                if planet.obj.pos().distance_to(laser.pos()) < 32. {
                     dead_lasers.push(j);
                     planet.health = planet.health.saturating_sub(1);
                 }
@@ -69,9 +69,9 @@ impl Server {
             if planet.health == 0 {
                 dead_planets.push(i)
             } else {
-                planet.obj.position += planet.obj.velocity * delta;
+                planet.obj.update(delta);
 
-                if stay_in_bounds(&mut planet.obj.position) {
+                if planet.obj.stay_in_bounds() {
                     self.server_socket.send_all(ServerPacket::UpdatePlanet(i, planet.obj), player_addrs.iter()).unwrap();
                 }
             }
@@ -91,7 +91,7 @@ impl Server {
             let mut players = self.players.lock().unwrap();
             let player = players.get_mut(i).unwrap();
             for (&l, laser) in self.lasers.lock().unwrap().iter() {
-                if player.obj.position.distance_to(laser.position) < 32. {
+                if player.obj.pos().distance_to(laser.pos()) < 32. {
                     player.health = player.health.saturating_sub(1);
                     self.server_socket.send(ServerPacket::UpdateHealth(player.health), addr).unwrap();
                     dead_lasers.push(l);
@@ -102,8 +102,8 @@ impl Server {
                 self.deads.push(addr.clone());
             }
 
-            player.obj.position += player.obj.velocity * delta;
-            stay_in_bounds(&mut player.obj.position);
+            player.obj.update(delta);
+            player.obj.stay_in_bounds();
         }
 
         dead_lasers.dedup();
@@ -118,8 +118,9 @@ impl Server {
         }
 
         for (&i, laser) in lasers.iter_mut() {
-            laser.position += laser.velocity * delta;
-            if stay_in_bounds(&mut laser.position) {
+            laser.update(delta);
+
+            if laser.stay_in_bounds() {
                 self.server_socket.send_all(ServerPacket::UpdateLaser(i, *laser), player_addrs.iter()).unwrap();
             }
         }
@@ -163,10 +164,10 @@ impl Server {
                         connections.insert(remote, idx);
                         to_send = Some(ServerPacket::UpdatePlayer(idx, RotatableObject::default()));
                     }
-                    ClientPacket::PlayerImpulse(v) => {
+                    ClientPacket::PlayerImpulse(a) => {
                         if let Some(i) = connections.get(&remote) {
                             let player = players.get_mut(i).unwrap();
-                            player.obj.velocity += v * Vector2::unit_vector(player.obj.rotation);
+                            player.obj.acceleration = a * Vector2::unit_vector(player.obj.rotation);
                             to_send = Some(ServerPacket::UpdatePlayer(*i, player.obj));
                         }
                     }
@@ -179,14 +180,15 @@ impl Server {
                     }
                     ClientPacket::Shoot => {
                         if let Some(i) = connections.get(&remote) {
-                            let mut laser = players[i].obj;
-                            let dir = Vector2::unit_vector(laser.rotation);
-                            laser.velocity += 400. * dir;
-                            laser.position += 42. * dir;
+                            let player = players[i].obj;
+                            let dir = Vector2::unit_vector(player.rotation);
+
+                            let new_laser = RotatableObject::new(player.pos() + 42. * dir,
+                                player.vel() + 400. * dir, player.rotation);
 
                             let mut lasers = listener_lasers.lock().unwrap();
-                            let idx = fit_in(laser, &mut lasers);
-                            to_send = Some(ServerPacket::UpdateLaser(idx, laser));
+                            let idx = fit_in(new_laser, &mut lasers);
+                            to_send = Some(ServerPacket::UpdateLaser(idx, new_laser));
                         }
                     }
                     ClientPacket::Disconnect => {

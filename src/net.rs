@@ -1,4 +1,4 @@
-use super::obj::{BasicObject, RotatableObject};
+use super::obj::{PhysicsObject, RotatableObject};
 
 use std::net::{UdpSocket, ToSocketAddrs, SocketAddr};
 use std::collections::BTreeMap;
@@ -22,12 +22,12 @@ pub type Idx = u16;
 pub enum ServerPacket {
     PlayersAndPlanets {
         players: BTreeMap<Idx, RotatableObject>,
-        planets: BTreeMap<Idx, BasicObject>
+        planets: BTreeMap<Idx, PhysicsObject>
     },
     Lasers(BTreeMap<Idx, RotatableObject>),
     UpdatePlayer(Idx, RotatableObject),
     UpdateLaser(Idx, RotatableObject),
-    UpdatePlanet(Idx, BasicObject),
+    UpdatePlanet(Idx, PhysicsObject),
     DeletePlayer(Idx),
     DeleteLasers(Vec<Idx>),
     DeletePlanets(Vec<Idx>),

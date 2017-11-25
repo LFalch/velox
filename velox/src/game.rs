@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use velox_core::obj::{BasicObject, RotatableObject, stay_in_bounds};
+use velox_core::obj::{PhysicsObject, RotatableObject};
 use velox_core::net::*;
 
 use piston_window::*;
@@ -48,7 +48,7 @@ pub struct SpaceShooter {
     window: PistonWindow,
     assets: Assets,
     socket: Arc<ClientSocket>,
-    planets: Arc<Mutex<BTreeMap<Idx, BasicObject>>>,
+    planets: Arc<Mutex<BTreeMap<Idx, PhysicsObject>>>,
     players: Arc<Mutex<BTreeMap<Idx, RotatableObject>>>,
     lasers: Arc<Mutex<BTreeMap<Idx, RotatableObject>>>,
     health: Arc<Mutex<u8>>,
@@ -134,6 +134,7 @@ impl SpaceShooter {
         let (mut up, mut down, mut left, mut right)
             = (false, false, false, false);
 
+        let mut last_impulse = 0.;
 
         while let Some(e) = window.next() {
             match e {
@@ -163,19 +164,19 @@ impl SpaceShooter {
                         clear([0., 0., 0., 1.], g);
 
                         for planet in planets.lock().unwrap().values() {
-                            let (x, y) = planet.position.into();
+                            let (x, y) = planet.pos().into();
                             image(&assets.planet, c.transform.append_transform(pos_mat(
                                 x as f64, y as f64, 32., 32., w, h)), g)
                         }
 
                         for player in players.lock().unwrap().values() {
-                            let (x, y) = player.position.into();
+                            let (x, y) = player.pos().into();
                             image(&assets.ship, c.transform.append_transform(pos_rot_mat(
                                 x as f64, y as f64, 16., 16., w, h, player.rotation as f64)), g)
                         }
 
                         for laser in lasers.lock().unwrap().values() {
-                            let (x, y) = laser.position.into();
+                            let (x, y) = laser.pos().into();
                             image(&assets.laser, c.transform.append_transform(pos_rot_mat(
                                 x as f64, y as f64, 16., 16., w, h, laser.rotation as f64)), g)
                         }
@@ -199,26 +200,31 @@ impl SpaceShooter {
                     if left {
                         rotation -= 1.;
                     }
-                    if impulse != 0. {
-                        socket.send(ClientPacket::PlayerImpulse(impulse * 400. * u.dt as f32)).unwrap();
-                    }
+                    let rot;
                     if rotation != 0. {
+                        rot = true;
                         socket.send(ClientPacket::PlayerRotate(rotation * 2. * u.dt as f32)).unwrap();
+                    } else {
+                        rot = false;
+                    }
+                    if rot || impulse != last_impulse {
+                        last_impulse = impulse;
+                        socket.send(ClientPacket::PlayerImpulse(impulse * 150.)).unwrap();
                     }
 
                     for planet in planets.lock().unwrap().values_mut() {
-                        planet.position += planet.velocity * u.dt as f32;
-                        stay_in_bounds(&mut planet.position);
+                        planet.update(u.dt as f32);
+                        planet.stay_in_bounds();
                     }
 
                     for player in players.lock().unwrap().values_mut() {
-                        player.position += player.velocity * u.dt as f32;
-                        stay_in_bounds(&mut player.position);
+                        player.update(u.dt as f32);
+                        player.stay_in_bounds();
                     }
 
                     for laser in lasers.lock().unwrap().values_mut() {
-                        laser.position += laser.velocity * u.dt as f32;
-                        stay_in_bounds(&mut laser.position);
+                        laser.update(u.dt as f32);
+                        laser.stay_in_bounds();
                     }
                 }
                 Event::Input(Input::Close(_)) => {socket.send(ClientPacket::Disconnect).unwrap();}
