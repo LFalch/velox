@@ -775,6 +775,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "sandbox"
+version = "0.1.0"
+dependencies = [
+ "piston_window 0.73.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "velox-core 0.1.0-wip",
+]
+
+[[package]]
 name = "scoped_threadpool"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1,0 +1,8 @@
+[package]
+name = "sandbox"
+version = "0.1.0"
+authors = ["LFalch <lucas@wasd.dk>"]
+
+[dependencies]
+velox-core = {path = ".."}
+piston_window = "0.73"

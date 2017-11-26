@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "velox", "velox-server"]
+members = [".", "velox", "velox-server", "sandbox"]
 
 [package]
 name = "velox-core"
